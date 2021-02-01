@@ -353,8 +353,23 @@ func tsprintField(v cue.Value) (string, error) {
 			panic("wtf")
 		}
 	case cue.ListKind:
-		// Lists are concrete even if their constituent types are not
-		return "", nil // TODO
+		// A list is concrete (and thus its complete kind is ListKind instead of
+		// BottomKind) iff it specifies a finite number of elements - is
+		// "closed". This is independent of the types of its elements, which may
+		// be anywhere on the concreteness spectrum.
+		//
+		// For closed lists, we simply iterate over its component elements and
+		// print their typescript representation.
+		iter, _ := v.List()
+		var parts []string
+		for iter.Next() {
+			part, err := tsprintField(iter.Value())
+			if err != nil {
+				return "", err
+			}
+			parts = append(parts, part)
+		}
+		return fmt.Sprintf("[%s]", strings.Join(parts, ", ")), nil
 	case cue.StringKind, cue.BoolKind, cue.FloatKind, cue.IntKind:
 		return tsprintConcrete(v), nil
 	case cue.BytesKind:
@@ -379,8 +394,25 @@ func tsprintField(v cue.Value) (string, error) {
 	case cue.BottomKind:
 		return "", valError(v, "bottom, unsatisfiable")
 	case cue.ListKind:
-		// Lists are concrete even if their constituent types are not
-		return "", nil // TODO
+		// This list is open - its final element is ...<value> - and we can only
+		// meaningfully convert open lists to typescript if there are zero other
+		// elements.
+		e, has := v.Elem()
+		if !has {
+			panic("unreachable - non-concrete list should entail Elem() returns something")
+		}
+		elemstr, err := tsprintField(e)
+		if err != nil {
+			return "", err
+		}
+
+		// Verify there are no other list elements.
+		iter, _ := v.List()
+		// TODO There's gotta be a better way of checking this
+		for iter.Next() {
+			return "", valError(v, "open lists are only supported with zero values; try as [...%s]", elemstr)
+		}
+		return elemstr + "[]", nil // TODO
 	case cue.NumberKind, cue.StringKind:
 		// It appears there are only three cases in which we can have an
 		// incomplete NumberKind or StringKind:
@@ -394,11 +426,9 @@ func tsprintField(v cue.Value) (string, error) {
 		// easy. We disambiguate by seeing if there is an expression, which is
 		// how ">" and "2.2" are bound together.
 		//
-		// Bounds constraints are also possible on strings,
-		//
 		// TODO get more certainty/a clearer way of ascertaining this
 		if op != cue.NoOp {
-			return "", valError(v, "bounds constraints are not supported; they lack a direct typescript equivalent")
+			return "", valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
 		}
 		fallthrough
 	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind:
