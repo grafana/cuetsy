@@ -17,6 +17,10 @@ func main() {
 	}
 
 	// loadedInstances := load.Instances([]string{os.Args[1]}, nil)
+	// Haven't figured everything out yet about how they're related to the
+	// working directory, the argument here, the name of a package given,
+	// imports, etc. This is more "quick n' dumb" for now - just enough to
+	// test out the contained test file.
 	loadedInstances := load.Instances([]string{"."}, &load.Config{Package: "cuetsy"})
 	instances := cue.Build(loadedInstances)
 	for _, inst := range instances {
