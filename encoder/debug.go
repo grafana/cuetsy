@@ -4,9 +4,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"cuelang.org/go/cue"
 )
+
+var jf *os.File
+
+func init() {
+	var err error
+	jf, err = os.OpenFile("dump.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+
+	if err != nil {
+		panic(err)
+	}
+}
 
 // Exercises all read-only funcs on a cue.Value.
 //
@@ -20,12 +32,8 @@ func dumpJSON(name string, v cue.Value, showerrs bool) {
 	if err != nil {
 		panic(err)
 	}
-	f, err := os.OpenFile("dump.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 
-	if err != nil {
-		panic(err)
-	}
-	fmt.Fprint(f, string(b))
+	fmt.Fprint(jf, string(b))
 }
 
 func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]interface{}) {
@@ -39,12 +47,22 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 		return
 	}
 
-	dv := cue.Dereference(v)
-	if !dv.Equals(v) {
-		ret["Dereference()"] = r(dv)
-	} else {
-		ret["Dereference()"] = "no-op"
+	attr := v.Attribute(attrname)
+	if attr.Err() == nil {
+		val, found, err := attr.Lookup(0, "targetType")
+		if err == nil && found {
+			ret["Attr() targetType"] = val
+		}
 	}
+
+	// dv := cue.Dereference(v)
+	// if !dv.Equals(v) {
+	// 	ret["Dereference()"] = r(dv)
+	// } else {
+	// 	ret["Dereference()"] = "no-op"
+	// }
+
+	ret["Source() type"] = fmt.Sprintf("%T", v.Source())
 
 	if br, err := v.Bool(); err == nil {
 		ret["Bool()"] = br
@@ -53,7 +71,7 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 	}
 
 	if by, err := v.Bytes(); err == nil {
-		ret["Bytes()"] = fmt.Sprint(by)
+		ret["Bytes()"] = string(by)
 	} else if showerrs {
 		ret["ERR Bytes()"] = err
 	}
@@ -84,20 +102,21 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 		ret["Eval() new val"] = r(eval)
 	}
 
-	ret["Exists()"] = v.Exists()
+	// ret["Exists()"] = v.Exists()
 
 	op, vals := v.Expr()
-	if len(vals) > 0 {
+	if op != cue.NoOp {
 		var exprvals []map[string]interface{}
 		for _, val := range vals {
 			if !v.Equals(val) {
 				exprvals = append(exprvals, r(val))
-				r(val)
 			}
 		}
-		ret["Expr()"] = map[string]interface{}{
-			"Op":    fmt.Sprint(op),
-			"Parts": exprvals,
+		if len(exprvals) > 0 {
+			ret["Expr()"] = map[string]interface{}{
+				"Op":    op.String(),
+				"Parts": exprvals,
+			}
 		}
 	}
 
@@ -149,8 +168,6 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 
 	// Skip Pos()
 	// Skip Reader()
-	// Skip Reference()
-	// Skip Source()
 
 	if v2, err := v.String(); err == nil {
 		ret["String()"] = v2
@@ -167,6 +184,11 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 		ret["Struct() fields"] = sub
 	} else if showerrs {
 		ret["ERR Struct()"] = err
+	}
+
+	_, path := v.Reference()
+	if len(path) > 0 {
+		ret["Reference() path"] = strings.Join(path, ".")
 	}
 
 	// Skip Syntax()

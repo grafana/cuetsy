@@ -3,15 +3,27 @@ package encoder
 import (
 	"bytes"
 	"fmt"
-	"go/ast"
-	"go/types"
+	gast "go/ast"
+	"math/bits"
 	"os"
 	"sort"
 	"strings"
 	"text/template"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
+)
+
+const attrname = "cuetsy"
+const attrkey = "targetType"
+
+type attrTSTarget string
+
+const (
+	tgtType      attrTSTarget = "type"
+	tgtInterface attrTSTarget = "interface"
+	tgtEnum      attrTSTarget = "enum"
 )
 
 // TODO use txtar to set up a buncha test cases
@@ -21,40 +33,32 @@ import (
 // It is expected that the cue.Instance represents a top-level struct - that is,
 // the contents of a single file or merged contents of a CUE package.
 func Generate(inst *cue.Instance) (b []byte, err error) {
-	if err = inst.Value().Validate(cue.ResolveReferences(false)); err != nil {
+	if err = inst.Value().Validate(); err != nil {
 		return nil, err
 	}
 
 	g := &generator{
-		typeMap: map[string]types.Type{},
+		inst: inst,
 	}
 	// TODO select codegen logic to execute based on package-level attr (compare to: proto2, proto3)
 	// TODO how the hell do we require the input artifacts to be versioned
 
-	iter, err := inst.Value().Fields(cue.Definitions(true), cue.DisallowCycles(true), cue.ResolveReferences(false))
+	iter, err := inst.Value().Fields(cue.Definitions(true))
 	if err != nil {
 		os.Exit(1)
 	}
 
-	// TODO need a whole indirection layer here for a builder that can analyze,
-	// validate, and prep outputs independent of actually generating templated
-	// output.
 	for iter.Next() {
 		g.decl(iter.Label(), iter.Value())
 	}
 
-	if g.err != nil {
-		return nil, err
-	}
-
-	return g.w.Bytes(), nil
+	return g.w.Bytes(), g.err
 }
 
 type generator struct {
-	typeMap map[string]types.Type
-
-	w   bytes.Buffer
-	err errors.Error
+	inst *cue.Instance
+	w    bytes.Buffer
+	err  errors.Error
 }
 
 func (g *generator) addErr(err error) {
@@ -68,19 +72,8 @@ func (g *generator) exec(t *template.Template, data interface{}) {
 }
 
 func (g *generator) decl(name string, v cue.Value) {
-	attr := v.Attribute("grafanats")
-	// dumpJSON(name, v, false)
-
-	// Establish that we have an exported (upper case first letter) name, and
-	// that the expected grafanats attribute is present.
-	if !ast.IsExported(name) || attr.Err() != nil {
-		return
-	}
-
-	// Establish that the expected "targetType" property is present within the
-	// grafanats attribute.
-	tt, found, err := attr.Lookup(0, "targetType")
-	if !found || err != nil {
+	dumpJSON(name, v, false)
+	if !gast.IsExported(name) {
 		return
 	}
 
@@ -94,16 +87,38 @@ func (g *generator) decl(name string, v cue.Value) {
 	// 7. Probably can't allow any function calls either
 
 	// Validation TODOs
-	// - Disallow any nested structs beneath a struct literal (struct literal,
-	//   because field comprehensions and files are represented in adt as
-	//   structs). See Value.Source()
+	// - Disallow struct literals nested within struct literals (?). (struct
+	//   literal, because field comprehensions and files are represented in adt as
+	//   structs. See Value.Source())
 	// - Experiment with things like field comprehensions, string evals, etc.,
 	//   to see how much evaluation we can easily trigger (and therefore, how
 	//   little of CUE we have to cut off) without making unclear exactly what
 	//   gets exported to TS
 	// - See if we can write a CUE file for generalized validation of the inputs
 	//   to this program - e.g., all enum values are lowerCamelCase
+	// - Disallow exported structs without an annotation...? The only goal there would
+	//   be to try to provide more guiding guardrails to users
 
+	tst, err := getTSTarget(v)
+	if err != nil {
+		// Not an error (yet) to not have an attribute
+		return
+	}
+	switch tst {
+	case tgtEnum:
+		g.genEnum(name, v)
+		return
+	case tgtInterface:
+		g.genInterface(name, v)
+		return
+	case tgtType:
+		// TODO
+	default:
+		return // TODO error out
+	}
+}
+
+func (g *generator) genEnum(name string, v cue.Value) {
 	type KV struct{ K, V string }
 	var pairs []KV
 	tvars := map[string]interface{}{
@@ -111,148 +126,383 @@ func (g *generator) decl(name string, v cue.Value) {
 		"export": true,
 	}
 
-	switch tt {
-	case "enum":
-		// We restrict the expression of enums to disjunctions (sum types).
-		op, dvals := v.Expr()
-		if op != cue.OrOp {
-			g.addErr(fmt.Errorf("Typescript enums may only be generated from a disjunction of strings"))
+	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
+	op, dvals := v.Expr()
+	if op != cue.OrOp || v.IncompleteKind() != cue.StringKind {
+		// Note: IncompleteKind() returns the union of basic types present
+		// within the set of values in the sum type. Thus, the sum type's
+		// IncompleteKind() being string tells us that all elements of the
+		// sum type are a string (they have string as their least upper
+		// bound).
+		g.addErr(fmt.Errorf("typescript enums may only be generated from a disjunction of strings"))
+		return
+	}
+
+	for _, dv := range dvals {
+		text, _ := dv.String()
+		if !dv.IsConcrete() {
+			g.addErr(fmt.Errorf("typescript enums may only be generated from a disjunction of concrete strings"))
 			return
 		}
+		// Simple mapping of all enum values (which we are assuming are in
+		// lowerCamelCase) to corresponding CamelCase
+		pairs = append(pairs, KV{K: strings.Title(text), V: tsprintConcrete(dv)})
+	}
 
-		for _, dv := range dvals {
-			text, _ := dv.String()
-			if !dv.IsConcrete() || dv.IncompleteKind() != cue.StringKind || err != nil {
-				g.addErr(fmt.Errorf("Typescript enums may only be generated from a disjunction of strings"))
-				return
-			}
-			// Simple mapping of all enum values - which we are assuming are in
-			// lowerCamelCase - to corresponding CamelCase
-			pairs = append(pairs, KV{K: strings.Title(text), V: fmt.Sprintf("'%s'", text)})
-		}
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].K < pairs[j].K
+	})
+	tvars["pairs"] = pairs
 
-		sort.Slice(pairs, func(i, j int) bool {
-			return pairs[i].K < pairs[j].K
-		})
-		tvars["pairs"] = pairs
+	// TODO comments
+	// TODO maturity marker (@alpha, etc.)
+	g.exec(enumCode, tvars)
+}
 
-		// TODO comments, maturity
-		g.exec(enumCode, tvars)
-	case "interface":
-		// We restrict the derivation of Typescript interfaces to struct kinds.
-		// (More than just a plain "{...}" struct match this, though.)
-		if v.IncompleteKind() != cue.StructKind {
-			// TODO figure out how to attach cue token positions to errors
-			g.addErr(fmt.Errorf("Typescript interfaces may only be generated from structs"))
-			return
-		}
+func (g *generator) genInterface(name string, v cue.Value) {
+	type KV struct{ K, V string }
+	var pairs []KV
+	tvars := map[string]interface{}{
+		"name":    name,
+		"export":  true,
+		"extends": []string{},
+	}
 
-		// Handle expressions directly on the label node itself
-		op, dvals := v.Expr()
-		switch op {
-		case cue.AndOp:
-			for _, dv := range dvals {
-				s := dv.Source()
-				_ = s
-			}
-		}
+	// We restrict the derivation of Typescript interfaces to struct kinds.
+	// (More than just a struct literal match this, though.)
+	if v.IncompleteKind() != cue.StructKind {
+		// TODO figure out how to attach cue token positions to errors
+		g.addErr(fmt.Errorf("typescript interfaces may only be generated from structs"))
+		return
+	}
 
-		iter, err := v.Fields(cue.Definitions(true))
-		_, _ = iter, err
-		for i, _ := v.Fields(cue.Definitions(true)); i.Next(); {
-			if i.IsHidden() || i.IsDefinition() {
-				continue
-			}
+	// There are basic two paths to extracting what we treat as the body
+	// of the Typescript interface to generate. The first, simpler case,
+	// applies when there's just a literal struct declaration for the label,
+	// e.g.:
+	//
+	//  a: {
+	//	  foo: string
+	//  }
+	//
+	// Such declarations return an empty []Value from Expr(), so we
+	// construct them through Value.Fields() instead. However, when there's
+	// unification involved:
+	//
+	// b: a & {
+	//	  bar: string
+	//  }
+	//
+	// Then Value.Fields() represents the *results* of evaluating the
+	// expression. This is an unavoidable part of constructing the value
+	// (cue.Instance.Value() triggers it), but it's not what we want for
+	// generating Typescript. Our goal is to generate text such that
+	// Typescript will reach the same final semantics as CUE does, but
+	// through its own evaluation, rather than just spitting out the final
+	// result. (In other words, we want the TS and CUE to look structurally
+	// the same-ish.) So, if Value.Expr() returns at least one result, we
+	// call it continuously until we find a Value from an ast.StructLit,
+	// which contains only the literal declarations in its Fields().
+	//
+	// TODO The exception is if we find definitions in the Expr Values,
+	// which must then be directly unified into the struct literal.
+	fields, err := v.Fields(cue.Optional(true))
+	if err != nil {
+		panic("unreachable: already verified we have a StructKind?")
+	}
 
-			optional := ""
-			if i.IsOptional() {
-				optional = "?"
-			}
-			k := fmt.Sprintf("%s%s", i.Label(), optional)
+	op, _ := v.Expr()
+	if op != cue.NoOp {
+		var extends []string
+		var foundLiteral bool
 
-			s := v.Source()
-			_ = s
-
-			// Handle expressions
-			op, dvals := i.Value().Expr()
+		// Recursively walk down Expr() return Values and pull out the interesting ones
+		var walkExpr func(v cue.Value, belowAnd bool) error
+		walkExpr = func(v cue.Value, belowAnd bool) error {
+			op, dvals := v.Expr()
 			switch op {
+			case cue.NoOp:
+				return nil
+			case cue.OrOp:
+				return valError(v, "typescript interfaces cannot be constructed from disjunctions")
+			case cue.SelectorOp:
+				if !belowAnd {
+					// Only (?) interested in this to extract name of unified struct, if we're under a conjunction
+					return nil
+				}
+				if len(dvals) != 2 {
+					return valError(v, "selector expressions should have two operands; wtf")
+				}
+
+				// This gives us the string value of the identifier being
+				// merged, so we can look it up and retrieve its attributes.
+				// TODO what if it's a nested struct? Will this still work for a path lookup? uuughhh
+				label, err := dvals[1].String()
+				if err != nil {
+					return err
+				}
+				lv := g.inst.Lookup(label)
+				if !lv.Exists() {
+					return valError(dvals[1], "should be unreachable, as the identifier must have a valid referent to pass earlier validation")
+				}
+				// TODO An error is probably right, but is there an argument to
+				// be made that this should fall back to just merging in, as a
+				// definition would?
+				if !checkTSTarget(tgtInterface, lv) {
+					return valError(dvals[1], "interface-targeted structs may only be unified with other structs that target interfaces")
+				}
+				extends = append(extends, label)
+				return nil
 			case cue.AndOp:
+				// First, search the dvals for a StructLit. That'll be the only one we have to deal with.
 				for _, dv := range dvals {
-					s := dv.Source()
-					_ = s
+					if dv.IncompleteKind() != cue.StructKind {
+						panic("impossible? seems like it should be. if this pops, clearly not!")
+					}
+					// We go depth-first, as the LHS of a series of unifications
+					// over structs gets incrementally populated with each
+					// unified struct as you move up from the leaves. (Wait,
+					// does this actually matter?)
+					if err := walkExpr(dv, true); err != nil {
+						return err
+					}
+					if _, ok := dv.Source().(*ast.StructLit); ok {
+						var err error
+						fields, err = dv.Fields(cue.Optional(true))
+						// TODO error if we find more than one?
+						foundLiteral = true
+						if err != nil {
+							return err
+						}
+					}
 				}
+				return nil
 			}
+			return nil
+		}
+		if err := walkExpr(v, false); err != nil {
+			g.addErr(err)
+			return
+		}
+		if !foundLiteral {
+			fields = nil
+		}
+		tvars["extends"] = extends
+	}
 
-			// First, check kind.
-			ik := i.Value().IncompleteKind()
-			switch ik {
-			case cue.StructKind:
-				// Nested structs are not allowed (for now), but there are
-				// several valid cases that have incomplete StructKind which are
-				// acceptable.
-
-				// TODO finish
-			case cue.ListKind:
-				// Only translateable to typescript if it's a 0-element open
-				// list with a basic type, e.g. [...number] => number[]
-
-				// TODO finish
-			case cue.StringKind, cue.NumberKind, cue.FloatKind, cue.IntKind, cue.BoolKind:
-				// For all of these scalar types, we only want to permit types - that is, non-concrete options.
-				if !v.IsConcrete() {
-					// TODO figure out how to attach cue token positions to errors
-					g.addErr(fmt.Errorf("Only CUE basic types, not constraints or concrete values, may be used for interface generation"))
-					return
-				}
-				pairs = append(pairs, KV{K: k, V: fmtTypeAsTypescript(ik)})
-			case cue.BytesKind:
-				// TODO figure out how to attach cue token positions to errors
-				g.addErr(fmt.Errorf("Bytes have no equivalent in Typescript; use double-quotes (string) instead"))
-				return
-			default:
-				// TODO differentiate between other types (is that necessary?) and sum types - popcount the bits?
-				// TODO figure out how to attach cue token positions to errors
-				g.addErr(fmt.Errorf("Unrecognized kind %s", ik))
-				return
-			}
+	// We now have an iterator that represents the set of fields we want to
+	// place in the body of the generated typescript interface. (Or nil, if
+	// there's no body to generate.)
+	for fields != nil && fields.Next() {
+		if fields.IsHidden() {
+			// TODO figure out how to attach cue token positions to errors
+			g.addErr(valError(fields.Value(), "cannot generate hidden fields; typescript has no corresponding concept"))
+			return
 		}
 
-		sort.Slice(pairs, func(i, j int) bool {
-			return pairs[i].K < pairs[j].K
-		})
-		tvars["pairs"] = pairs
+		k := fields.Label()
+		if fields.IsOptional() {
+			k += "?"
+		}
 
-		g.exec(interfaceCode, tvars)
+		vstr, err := tsprintField(fields.Value())
+		if err != nil {
+			g.addErr(err)
+			return
+		}
+		pairs = append(pairs, KV{K: k, V: vstr})
+	}
+
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
+	tvars["pairs"] = pairs
+
+	g.exec(interfaceCode, tvars)
+}
+
+// Render a string containing a Typescript semantic equivalent to the provided
+// Value, if possible.
+//
+// The provided Value must be a simple expression (loosely defined, until
+// something more precise is understood); e.g., this will NOT render a struct
+// literal.
+func tsprintField(v cue.Value) (string, error) {
+	// References appear to be largely orthogonal to the Kind system. Handle them first.
+	_, path := v.Reference()
+	if len(path) > 0 {
+		return strings.Join(path, "."), nil
+	}
+
+	op, dvals := v.Expr()
+	// Eliminate concretes first, to make handling the others easier.
+	switch v.Kind() {
+	case cue.StructKind:
+		switch s := v.Source().(type) {
+		case *ast.StructLit:
+			return "", valError(v, "nested structs are not yet supported")
+		case *ast.Field:
+			// TODO
+			// return s.Label
+			// Otherwise it's gonna (?) be a field, and we just print its name,
+			// which should be available via String() of the second op from Expr()
+			_ = s
+			if op != cue.SelectorOp {
+				panic("fixme")
+			}
+			return dvals[1].String()
+		default:
+			panic("wtf")
+		}
+	case cue.ListKind:
+		// Lists are concrete even if their constituent types are not
+		return "", nil // TODO
+	case cue.StringKind, cue.BoolKind, cue.FloatKind, cue.IntKind:
+		return tsprintConcrete(v), nil
+	case cue.BytesKind:
+		return "", valError(v, "bytes have no equivalent in Typescript; use double-quotes (string) instead")
+	}
+
+	// Handler for disjunctions
+	disj := func(dvals []cue.Value) (string, error) {
+		parts := make([]string, 0, len(dvals))
+		for _, dv := range dvals {
+			p, err := tsprintField(dv)
+			if err != nil {
+				return "", err
+			}
+			parts = append(parts, p)
+		}
+		return strings.Join(parts, " | "), nil
+	}
+
+	ik := v.IncompleteKind()
+	switch ik {
+	case cue.BottomKind:
+		return "", valError(v, "bottom, unsatisfiable")
+	case cue.ListKind:
+		// Lists are concrete even if their constituent types are not
+		return "", nil // TODO
+	case cue.NumberKind, cue.StringKind:
+		// It appears there are only three cases in which we can have an
+		// incomplete NumberKind or StringKind:
+		//
+		// 1. The corresponding literal is a bounding constraint (which subsumes
+		// both int and float), e.g. >2.2, <"foo"
+		// 2. There's a disjunction of concrete literals of the relevant type
+		// 2. The corresponding literal is the basic type "number" or "string"
+		//
+		// The former case has no equivalent in typescript, but the latter is
+		// easy. We disambiguate by seeing if there is an expression, which is
+		// how ">" and "2.2" are bound together.
+		//
+		// Bounds constraints are also possible on strings,
+		//
+		// TODO get more certainty/a clearer way of ascertaining this
+		if op != cue.NoOp {
+			return "", valError(v, "bounds constraints are not supported; they lack a direct typescript equivalent")
+		}
+		fallthrough
+	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind:
+		// Having eliminated the possibility of bounds/constraints, we're left
+		// with disjunctions and basic types.
+		if op == cue.OrOp {
+			// It's a disjunction.
+			return disj(dvals)
+		} else if op != cue.NoOp {
+			panic("unreachable...?")
+		}
+		// There's no op; it's a basic type, and can be trivially rendered.
+		fallthrough
+	case cue.TopKind:
+		return tsprintType(ik), nil
+	}
+
+	// Having more than one possible kind entails a disjunction, TopKind, or
+	// NumberKind. We've already eliminated TopKind and NumberKind, so now check
+	// if there's more than one bit set. (If there isn't, it's a bug: we've
+	// missed a kind above). If so, run our disjunction-handling logic.
+	if bits.OnesCount16(uint16(ik)) > 1 {
+		return disj(dvals)
+	}
+
+	return "", valError(v, "unrecognized kind %s", ik)
+}
+
+// ONLY call this function if it has been established that the provided Value is
+// Concrete.
+func tsprintConcrete(v cue.Value) string {
+	switch v.Kind() {
+	case cue.NullKind:
+		return "null"
+	case cue.StringKind:
+		s, _ := v.String()
+		return fmt.Sprintf("'%s'", s)
+	case cue.FloatKind:
+		f, _ := v.Float64()
+		return fmt.Sprintf("%g", f)
+	case cue.NumberKind, cue.IntKind:
+		i, _ := v.Int64()
+		return fmt.Sprintf("%v", i)
+	case cue.BoolKind:
+		if b, _ := v.Bool(); b {
+			return "true"
+		}
+		return "false"
 	default:
-		return // TODO error out
+		panic("unreachable")
 	}
 }
 
-func fmtTypeAsTypescript(k cue.Kind) string {
+func tsprintType(k cue.Kind) string {
 	switch k {
 	case cue.BoolKind:
 		return "boolean"
-	case cue.StringKind, cue.NumberKind, cue.FloatKind, cue.IntKind:
-		return k.String()
+	case cue.StringKind:
+		return "string"
+	case cue.NumberKind, cue.FloatKind, cue.IntKind:
+		return "number"
+	case cue.TopKind:
+		return "any"
 	default:
 		return ""
 	}
 }
 
-func fmtAtomAsTypescript(v cue.Value) string {
-	switch v.Kind() {
-	case cue.StringKind:
-		// Shouldn't be possible for this to err on a concrete value
-		str, _ := v.String()
-		return fmt.Sprintf("'%s'", str)
-	case cue.BoolKind:
-
+func getTSTarget(v cue.Value) (attrTSTarget, error) {
+	a := v.Attribute(attrname)
+	if a.Err() != nil {
+		return "", a.Err()
 	}
 
-	return ""
+	tt, found, err := a.Lookup(0, "targetType")
+	if !found {
+		return "", valError(v, "no value for the %q key in @%s attribute", attrkey, attrname)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return attrTSTarget(tt), nil
 }
 
-func isStruct(v cue.Value) bool {
-	_, err := v.Struct()
-	return err == nil
+// Checks if the supplied Value has an attribute indicating the given targetAttr
+func checkTSTarget(t attrTSTarget, v cue.Value) bool {
+	tt, err := getTSTarget(v)
+	if err != nil {
+		return false
+	}
+
+	return tt == t
+}
+
+func valError(v cue.Value, format string, args ...interface{}) error {
+	s := v.Source()
+	if s == nil {
+		return fmt.Errorf(format, args...)
+	}
+	return errors.Newf(s.Pos(), format, args...)
+}
+
+func isReference(v cue.Value) bool {
+	_, path := v.Reference()
+	return len(path) > 0
 }

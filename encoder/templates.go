@@ -1,6 +1,9 @@
 package encoder
 
-import "text/template"
+import (
+	"strings"
+	"text/template"
+)
 
 // Generate a typescript enum declaration. Inputs:
 // .maturity	Optional. Maturity level, applied in doc comment
@@ -12,7 +15,7 @@ var enumCode = template.Must(template.New("enum").Parse(`
 /**
  * {{.maturity}}
  */
-{{- end}}
+{{end -}}
 {{if .export}}export{{end}} enum {{.name}} {
   {{- range .pairs}}
   {{.K}} = {{.V}},{{end}}
@@ -23,13 +26,17 @@ var enumCode = template.Must(template.New("enum").Parse(`
 // .maturity	Optional. Maturity level, applied in doc comment
 // .name		The name of the typescript enum.
 // .pairs		Slice of {K: string, V: string}
-var interfaceCode = template.Must(template.New("enum").Parse(`
+// .extends		Slice of other interface names to extend
+var interfaceCode = template.Must(template.New("interface").
+	Funcs(template.FuncMap{"Join": strings.Join}).Parse(`
 {{if .maturity -}}
 /**
  * {{.maturity}}
  */
 {{end -}}
-{{if .export}}export{{end}} interface {{.name}} {
-  {{range .pairs}}{{.K}}: {{.V}},{{end}}
+{{if .export}}export {{end -}}
+interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{end}} {
+  {{- range .pairs}}
+  {{.K}}: {{.V}},{{end}}
 }
 `))
