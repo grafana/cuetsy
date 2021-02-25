@@ -26,18 +26,41 @@ const (
 	tgtEnum      attrTSTarget = "enum"
 )
 
+// An ImportMapper takes an ImportDecl and returns a string indicating the
+// import statement that should be used in the corresponding typescript, or
+// an error if no mapping can be made.
+type ImportMapper func(*ast.ImportDecl) (string, error)
+
+// NoImportMappingErr returns a standard error indicating that no mapping can be
+// made for the provided import statement.
+func NoImportMappingErr(d *ast.ImportDecl) error {
+	return errors.Newf(d.Pos(), "a corresponding typescript import is not available for %q", d.Import.String())
+}
+
+func nilImportMapper(d *ast.ImportDecl) (string, error) { return "", NoImportMappingErr(d) }
+
+// Config governs certain variable behaviors when converting CUE to Typescript.
+type Config struct {
+	// ImportMapper determines how CUE imports are mapped to Typescript imports.
+	// If nil, any non-stdlib import in the CUE source will result in a fatal
+	// error.
+	ImportMapper
+}
+
 // TODO use txtar to set up a buncha test cases
 
 // Generate takes a cue.Instance and generates the corresponding Typescript.
-//
-// It is expected that the cue.Instance represents a top-level struct - that is,
-// the contents of a single file or merged contents of a CUE package.
-func Generate(inst *cue.Instance) (b []byte, err error) {
+func Generate(inst *cue.Instance, c Config) (b []byte, err error) {
 	if err = inst.Value().Validate(); err != nil {
 		return nil, err
 	}
 
+	if c.ImportMapper == nil {
+		c.ImportMapper = nilImportMapper
+	}
+
 	g := &generator{
+		c:    c,
 		inst: inst,
 	}
 	// TODO select codegen logic to execute based on package-level attr (compare to: proto2, proto3)
@@ -58,6 +81,7 @@ func Generate(inst *cue.Instance) (b []byte, err error) {
 
 type generator struct {
 	inst *cue.Instance
+	c    Config
 	w    bytes.Buffer
 	err  errors.Error
 }
@@ -172,16 +196,19 @@ func (g *generator) genEnum(name string, v cue.Value) {
 		// IncompleteKind() being string tells us that all elements of the
 		// sum type are a string (they have string as their least upper
 		// bound).
-		g.addErr(fmt.Errorf("typescript enums may only be generated from a disjunction of strings"))
+		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings"))
 		return
 	}
 
 	for _, dv := range dvals {
 		text, _ := dv.String()
 		if !dv.IsConcrete() {
-			g.addErr(fmt.Errorf("typescript enums may only be generated from a disjunction of concrete strings"))
+			g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings"))
 			return
 		}
+		// TODO add support for struct-based enums, such that the author has direct
+		// control over the mapping instead of inferring CamelCase
+
 		// Simple mapping of all enum values (which we are assuming are in
 		// lowerCamelCase) to corresponding CamelCase
 		pairs = append(pairs, KV{K: strings.Title(text), V: tsprintConcrete(dv)})
@@ -209,7 +236,6 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	// We restrict the derivation of Typescript interfaces to struct kinds.
 	// (More than just a struct literal match this, though.)
 	if v.IncompleteKind() != cue.StructKind {
-		// TODO figure out how to attach cue token positions to errors
 		g.addErr(fmt.Errorf("typescript interfaces may only be generated from structs"))
 		return
 	}
@@ -234,13 +260,14 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	// Then Value.Fields() represents the *results* of evaluating the
 	// expression. This is an unavoidable part of constructing the value
 	// (cue.Instance.Value() triggers it), but it's not what we want for
-	// generating Typescript. Our goal is to generate text such that
-	// Typescript will reach the same final semantics as CUE does, but
-	// through its own evaluation, rather than just spitting out the final
-	// result. (In other words, we want the TS and CUE to look structurally
-	// the same-ish.) So, if Value.Expr() returns at least one result, we
-	// call it continuously until we find a Value from an ast.StructLit,
-	// which contains only the literal declarations in its Fields().
+	// generating Typescript. Our goal is to generate text such that Typescript
+	// will reach the same final semantics as CUE does, but through its own
+	// composition of constitutent parts, rather than spitting out the final
+	// CUE-computed result. (In other words, we want the TS and CUE to look
+	// structurally the same-ish.) So, if Value.Expr() returns at least one
+	// result, we call it continuously until we find a Value from an
+	// ast.StructLit, which contains only the literal declarations in its
+	// Fields().
 	//
 	// TODO The exception is if we find definitions in the Expr Values,
 	// which must then be directly unified into the struct literal.
