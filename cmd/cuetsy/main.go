@@ -16,21 +16,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	// loadedInstances := load.Instances([]string{os.Args[1]}, nil)
-	// Haven't figured everything out yet about how they're related to the
-	// working directory, the argument here, the name of a package given,
-	// imports, etc. This is more "quick n' dumb" for now - just enough to
-	// test out the contained test file.
-	loadedInstances := load.Instances([]string{"."}, &load.Config{Package: "cuetsy"})
+	// For now at least, be higly restrictive and only allow passing one file.
+	if len(os.Args) != 2 {
+		fmt.Fprint(os.Stderr, "must provide path to exactly one .cue file\n")
+		os.Exit(1)
+	}
+
+	fi, err := os.Stat(os.Args[1])
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+		os.Exit(1)
+	}
+	if fi.IsDir() || !fi.Mode().IsRegular() {
+		fmt.Fprint(os.Stderr, "must provide path to exactly one .cue file\n")
+		os.Exit(1)
+	}
+
+	loadedInstances := load.Instances([]string{os.Args[1]}, nil)
 	instances := cue.Build(loadedInstances)
+	// Given the above input constraints, there _should_ only ever be a
+	// single element in this slice.
 	for _, inst := range instances {
-		b, err := encoder.Generate(inst)
+		b, err := encoder.Generate(inst, encoder.Config{})
 		if err != nil {
 			errors.Print(os.Stderr, err, &errors.Config{
 				Cwd: wd,
 			})
 			os.Exit(1)
 		}
-		fmt.Println(string(b))
+		// For now, write results to a file adjacent to the input cue file.
+		fd, err := os.Create(os.Args[1][:len(os.Args[1])-3] + "ts")
+		if err != nil {
+			fmt.Fprint(os.Stderr, err)
+		}
+		fmt.Fprint(fd, string(b))
 	}
 }
