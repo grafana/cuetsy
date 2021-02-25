@@ -12,13 +12,13 @@ import (
 // .tokens		Slice of token strings
 var typeCode = template.Must(template.New("enum").
 	Funcs(template.FuncMap{"Join": strings.Join}).Parse(`
-{{if .maturity -}}
+{{- if .maturity -}}
 /**
  * {{.maturity}}
  */
 {{end -}}
 {{if .export}}export {{end -}}
-type {{.name}} = {{ Join .tokens " | "}}
+type {{.name}} = {{ Join .tokens " | "}};
 `))
 
 // Generate a typescript enum declaration. Inputs:
@@ -27,7 +27,7 @@ type {{.name}} = {{ Join .tokens " | "}}
 // .name		  The name of the typescript enum
 // .pairs		  Slice of {K: string, V: string}
 var enumCode = template.Must(template.New("enum").Parse(`
-{{if .maturity -}}
+{{- if .maturity -}}
 /**
  * {{.maturity}}
  */
@@ -46,7 +46,7 @@ enum {{.name}} {
 // .extends		Slice of other interface names to extend
 var interfaceCode = template.Must(template.New("interface").
 	Funcs(template.FuncMap{"Join": strings.Join}).Parse(`
-{{if .maturity -}}
+{{- if .maturity -}}
 /**
  * {{.maturity}}
  */
@@ -54,6 +54,6 @@ var interfaceCode = template.Must(template.New("interface").
 {{if .export}}export {{end -}}
 interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{end}} {
   {{- range .pairs}}
-  {{.K}}: {{.V}},{{end}}
+  {{.K}}: {{.V}};{{end}}
 }
 `))

@@ -3,15 +3,21 @@ package encoder
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 
 	"cuelang.org/go/cue"
 )
 
-var jf *os.File
+var jf io.Writer = ioutil.Discard
 
 func init() {
+	// prepdump()
+}
+
+func prepdump() {
 	var err error
 	jf, err = os.OpenFile("dump.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 
