@@ -73,7 +73,7 @@ func (g *generator) exec(t *template.Template, data interface{}) {
 }
 
 func (g *generator) decl(name string, v cue.Value) {
-	dumpJSON(name, v, false)
+	// dumpJSON(name, v, false)
 	if !gast.IsExported(name) {
 		return
 	}
