@@ -45,6 +45,7 @@ func Generate(inst *cue.Instance) (b []byte, err error) {
 
 	iter, err := inst.Value().Fields(cue.Definitions(true))
 	if err != nil {
+		errors.Print(os.Stderr, err, &errors.Config{Cwd: "."})
 		os.Exit(1)
 	}
 
@@ -101,7 +102,7 @@ func (g *generator) decl(name string, v cue.Value) {
 
 	tst, err := getTSTarget(v)
 	if err != nil {
-		// Not an error (yet) to not have an attribute
+		// Ignore values without attributes
 		return
 	}
 	switch tst {
@@ -112,10 +113,47 @@ func (g *generator) decl(name string, v cue.Value) {
 		g.genInterface(name, v)
 		return
 	case tgtType:
-		// TODO
+		g.genType(name, v)
+		return
 	default:
 		return // TODO error out
 	}
+}
+
+func (g *generator) genType(name string, v cue.Value) {
+	tvars := map[string]interface{}{
+		"name":   name,
+		"export": true,
+	}
+
+	var tokens []string
+	op, dvals := v.Expr()
+	switch op {
+	case cue.OrOp:
+		for _, dv := range dvals {
+			tok, err := tsprintField(dv)
+			if err != nil {
+				g.addErr(err)
+				return
+			}
+			tokens = append(tokens, tok)
+		}
+	case cue.NoOp:
+		tok, err := tsprintField(v)
+		if err != nil {
+			g.addErr(err)
+			return
+		}
+		tokens = append(tokens, tok)
+	default:
+		g.addErr(valError(v, "typescript types may only be generated from a single value or disjunction of values"))
+	}
+
+	tvars["tokens"] = tokens
+
+	// TODO comments
+	// TODO maturity marker (@alpha, etc.)
+	g.exec(typeCode, tvars)
 }
 
 func (g *generator) genEnum(name string, v cue.Value) {
