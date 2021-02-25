@@ -460,25 +460,27 @@ func tsprintField(v cue.Value) (string, error) {
 		// 2. There's a disjunction of concrete literals of the relevant type
 		// 2. The corresponding literal is the basic type "number" or "string"
 		//
-		// The former case has no equivalent in typescript, but the latter is
-		// easy. We disambiguate by seeing if there is an expression, which is
-		// how ">" and "2.2" are bound together.
+		// The first case has no equivalent in typescript, and entails we error
+		// out. The other two have the same handling as for other kinds, so we
+		// fall through. We disambiguate by seeing if there is an expression
+		// (other than Or, "|"), which is how ">" and "2.2" are represented.
 		//
 		// TODO get more certainty/a clearer way of ascertaining this
-		if op != cue.NoOp {
+		if op != cue.NoOp && op != cue.OrOp {
 			return "", valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
 		}
 		fallthrough
 	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind:
 		// Having eliminated the possibility of bounds/constraints, we're left
 		// with disjunctions and basic types.
-		if op == cue.OrOp {
-			// It's a disjunction.
+		switch op {
+		case cue.OrOp:
 			return disj(dvals)
-		} else if op != cue.NoOp {
+		case cue.NoOp:
+			// There's no op; it's a basic type, and can be trivially rendered.
+		default:
 			panic("unreachable...?")
 		}
-		// There's no op; it's a basic type, and can be trivially rendered.
 		fallthrough
 	case cue.TopKind:
 		return tsprintType(ik), nil
