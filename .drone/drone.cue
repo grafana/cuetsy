@@ -4,7 +4,7 @@ name: "default"
 #Step: {
   name: string,
   commands: [string],
-  image: string | *"golang:1.15",
+  image: string | *"golang:1.16",
   volumes: [{name: "gopath", path: "/go"}],
   ...
 }
