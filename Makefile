@@ -18,7 +18,7 @@ install:
 	CGO_ENABLED=0 go install -ldflags=${LDFLAGS} ./cmd/cuetsy
 
 uninstall:
-	go clean -i ./cmd/tk
+	go clean -i ./cmd/cuetsy
 
 # CI
 drone:
