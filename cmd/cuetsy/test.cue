@@ -2,6 +2,10 @@ package cuetsy
 
 E1: "e1str1" | "e1str2" | "e1str3" @cuetsy(targetType="enum")
 E2: "e2str1" | "e2str2" | "e2str3" | "e2str4" @cuetsy(targetType="enum")
+E3: {
+  Walla: "laadeedaa"
+  run: "OMG"
+} @cuetsy(targetType="enum")
 
 I1: {
   I1_OptionalDisjunctionLiteral?: "other" | "values" | 2

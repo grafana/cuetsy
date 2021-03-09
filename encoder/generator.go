@@ -180,8 +180,12 @@ func (g *generator) genType(name string, v cue.Value) {
 	g.exec(typeCode, tvars)
 }
 
+type KV struct{ K, V string }
+
+// genEnum turns the following cue values into typescript enums:
+// - value disjunction (a | b | c): values are taken as is, keys implicitely generated as CamelCase
+// - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) {
-	type KV struct{ K, V string }
 	var pairs []KV
 	tvars := map[string]interface{}{
 		"name":   name,
@@ -189,29 +193,23 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	}
 
 	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
-	op, dvals := v.Expr()
-	if op != cue.OrOp || v.IncompleteKind() != cue.StringKind {
-		// Note: IncompleteKind() returns the union of basic types present
-		// within the set of values in the sum type. Thus, the sum type's
-		// IncompleteKind() being string tells us that all elements of the
-		// sum type are a string (they have string as their least upper
-		// bound).
-		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings"))
-		return
-	}
-
-	for _, dv := range dvals {
-		text, _ := dv.String()
-		if !dv.IsConcrete() {
-			g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings"))
-			return
+	op, _ := v.Expr()
+	switch {
+	case op == cue.OrOp && v.IncompleteKind() == cue.StringKind:
+		orPairs, err := genOrEnum(v)
+		if err != nil {
+			g.addErr(err)
 		}
-		// TODO add support for struct-based enums, such that the author has direct
-		// control over the mapping instead of inferring CamelCase
-
-		// Simple mapping of all enum values (which we are assuming are in
-		// lowerCamelCase) to corresponding CamelCase
-		pairs = append(pairs, KV{K: strings.Title(text), V: tsprintConcrete(dv)})
+		pairs = orPairs
+	case v.IncompleteKind() == cue.StructKind:
+		structPairs, err := genStructEnum(v)
+		if err != nil {
+			g.addErr(err)
+		}
+		pairs = structPairs
+	default:
+		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings or structs"))
+		return
 	}
 
 	sort.Slice(pairs, func(i, j int) bool {
@@ -222,6 +220,43 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
 	g.exec(enumCode, tvars)
+}
+
+func genOrEnum(v cue.Value) ([]KV, error) {
+	_, dvals := v.Expr()
+
+	var pairs []KV
+	for _, dv := range dvals {
+		text, _ := dv.String()
+		if !dv.IsConcrete() {
+			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings")
+		}
+
+		// Simple mapping of all enum values (which we are assuming are in
+		// lowerCamelCase) to corresponding CamelCase
+		pairs = append(pairs, KV{K: strings.Title(text), V: tsprintConcrete(dv)})
+	}
+	return pairs, nil
+}
+
+func genStructEnum(v cue.Value) ([]KV, error) {
+	var pairs []KV
+	fields, err := v.Fields()
+	if err != nil {
+		return nil, err
+	}
+
+	for fields.Next() {
+		k := fields.Label()
+		v := fields.Value()
+		if v.IncompleteKind() != cue.StringKind {
+			return nil, valError(v, "Only string fields are permitted in struct enums")
+		}
+
+		pairs = append(pairs, KV{K: k, V: tsprintConcrete(v)})
+	}
+
+	return pairs, nil
 }
 
 func (g *generator) genInterface(name string, v cue.Value) {
