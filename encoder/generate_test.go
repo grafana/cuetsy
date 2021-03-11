@@ -40,7 +40,7 @@ func TestGenerate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if s := cmp.Diff(string(out), c.TS); s != "" {
+			if s := cmp.Diff(c.TS, string(out)); s != "" {
 				t.Fatal(s)
 			}
 		})
