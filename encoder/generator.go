@@ -180,7 +180,10 @@ func (g *generator) genType(name string, v cue.Value) {
 	g.exec(typeCode, tvars)
 }
 
-type KV struct{ K, V string }
+type KV struct {
+	K, V    string
+	Default string
+}
 
 // genEnum turns the following cue values into typescript enums:
 // - value disjunction (a | b | c): values are taken as is, keys implicitely generated as CamelCase
@@ -260,7 +263,6 @@ func genStructEnum(v cue.Value) ([]KV, error) {
 }
 
 func (g *generator) genInterface(name string, v cue.Value) {
-	type KV struct{ K, V string }
 	var pairs []KV
 	tvars := map[string]interface{}{
 		"name":    name,
@@ -410,7 +412,17 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			g.addErr(err)
 			return
 		}
-		pairs = append(pairs, KV{K: k, V: vstr})
+
+		kv := KV{K:k, V:vstr}
+
+		if d, ok := fields.Value().Default(); ok {
+			dStr, err := tsprintField(d)
+			g.addErr(err)
+			kv.Default = dStr
+			tvars["defaults"] = true
+		}
+
+		pairs = append(pairs, kv)
 	}
 
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })

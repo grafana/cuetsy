@@ -44,6 +44,7 @@ enum {{.name}} {
 // .name		The name of the typescript enum.
 // .pairs		Slice of {K: string, V: string}
 // .extends		Slice of other interface names to extend
+// .defaults	Whether to generate a default const
 var interfaceCode = template.Must(template.New("interface").
 	Funcs(template.FuncMap{"Join": strings.Join}).Parse(`
 {{- if .maturity -}}
@@ -56,4 +57,10 @@ interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{e
   {{- range .pairs}}
   {{.K}}: {{.V}};{{end}}
 }
+{{- if .defaults }}
+{{if .export}}export {{end -}}
+const {{.name}}Default {
+  {{- range .pairs}}{{if .Default}}
+  {{.K}}: {{.Default}};{{end}}{{end}}
+}{{end}}
 `))
