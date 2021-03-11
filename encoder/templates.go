@@ -19,6 +19,9 @@ var typeCode = template.Must(template.New("enum").
 {{end -}}
 {{if .export}}export {{end -}}
 type {{.name}} = {{ Join .tokens " | "}};
+{{- if .default }}
+{{if .export}}export {{end -}}
+const {{.name}}Default: {{.name}} = {{.default}}{{end}}
 `))
 
 // Generate a typescript enum declaration. Inputs:
@@ -59,8 +62,8 @@ interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{e
 }
 {{- if .defaults }}
 {{if .export}}export {{end -}}
-const {{.name}}Default {
+const {{.name}}Default: {{.name}} = {
   {{- range .pairs}}{{if .Default}}
-  {{.K}}: {{.Default}};{{end}}{{end}}
+  {{.K}}: {{.Default}},{{end}}{{end}}
 }{{end}}
 `))

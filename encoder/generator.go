@@ -175,6 +175,13 @@ func (g *generator) genType(name string, v cue.Value) {
 
 	tvars["tokens"] = tokens
 
+	d, ok := v.Default()
+	if ok {
+		dStr, err := tsprintField(d)
+		g.addErr(err)
+		tvars["default"] = dStr
+	}
+
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
 	g.exec(typeCode, tvars)
@@ -415,10 +422,14 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 		kv := KV{K:k, V:vstr}
 
-		if d, ok := fields.Value().Default(); ok {
+		d, ok := fields.Value().Default()
+		if ok {
 			dStr, err := tsprintField(d)
 			g.addErr(err)
 			kv.Default = dStr
+			if _, r := d.Reference(); len(r) > 0 {
+				kv.Default += "Default"
+			}
 			tvars["defaults"] = true
 		}
 
@@ -446,7 +457,8 @@ func tsprintField(v cue.Value) (string, error) {
 
 	op, dvals := v.Expr()
 	// Eliminate concretes first, to make handling the others easier.
-	switch v.Kind() {
+	k := v.Kind()
+	switch k {
 	case cue.StructKind:
 		switch s := v.Source().(type) {
 		case *ast.StructLit:
