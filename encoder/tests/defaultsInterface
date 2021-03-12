@@ -1,0 +1,29 @@
+Verifies defaults from structs (interfaces) work
+
+- Primitives are inlined
+- Named types use references to the respective default value
+
+-- cue  --
+package cuetsy
+
+AType: "foo" | "bar" | *"baz" @cuetsy(targetType="type")
+
+Foo: {
+  Bar: string | *"ohai"
+  Baz: int | *4
+  C: AType
+} @cuetsy(targetType="interface")
+
+-- ts  --
+export type AType = 'foo' | 'bar' | 'baz';
+export const aTypeDefault: AType = 'baz'
+export interface Foo {
+  Bar: string;
+  Baz: number;
+  C: AType;
+}
+export const fooDefault: Foo = {
+  Bar: 'ohai',
+  Baz: 4,
+  C: aTypeDefault,
+}

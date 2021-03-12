@@ -1,0 +1,26 @@
+Verifies default value generation for enums
+- Disjunction style uses CUE defaults
+- Struct style uses @cuetsy(enumDefault) flag
+
+-- cue --
+package cuetsy
+
+OrEnum: "foo" | "bar" | *"baz" @cuetsy(targetType="enum")
+
+StructEnum: {
+   Walla: "laadeedaa" @cuetsy(enumDefault)
+   run: "OMG"
+} @cuetsy(targetType="enum")
+
+-- ts  --
+export enum OrEnum {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+export const orEnumDefault: OrEnum = OrEnum.Baz
+export enum StructEnum {
+  Walla = 'laadeedaa',
+  run = 'OMG',
+}
+export const structEnumDefault: StructEnum = StructEnum.Walla
