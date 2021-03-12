@@ -73,7 +73,7 @@ const {{ToLowerCamel .name}}Default: {{.name}} = {
 func tmpl(name, data string) *template.Template {
 	t := template.New(name)
 	t.Funcs(template.FuncMap{
-		"Join": strings.Join,
+		"Join":         strings.Join,
 		"ToLowerCamel": strcase.ToLowerCamel,
 	})
 	t = template.Must(t.Parse(data))

@@ -18,7 +18,7 @@ import (
 
 const attrname = "cuetsy"
 const (
-	attrTarget = "targetType"
+	attrTarget      = "targetType"
 	attrEnumDefault = "enumDefault"
 )
 
@@ -483,7 +483,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			return
 		}
 
-		kv := KV{K:k, V:vstr}
+		kv := KV{K: k, V: vstr}
 
 		d, ok := fields.Value().Default()
 		// [...number] results in [], which is not desired
@@ -493,7 +493,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			g.addErr(err)
 			kv.Default = dStr
 			if _, r := d.Reference(); len(r) > 0 {
-				kv.Default = strcase.ToLowerCamel(kv.Default+"Default")
+				kv.Default = strcase.ToLowerCamel(kv.Default + "Default")
 			}
 			tvars["defaults"] = true
 		}
