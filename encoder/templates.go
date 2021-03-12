@@ -1,6 +1,7 @@
 package encoder
 
 import (
+	"github.com/iancoleman/strcase"
 	"strings"
 	"text/template"
 )
@@ -10,8 +11,7 @@ import (
 // .export		Whether to export the declaration
 // .name		  The name of the typescript type
 // .tokens		Slice of token strings
-var typeCode = template.Must(template.New("enum").
-	Funcs(template.FuncMap{"Join": strings.Join}).Parse(`
+var typeCode = tmpl("type", `
 {{- if .maturity -}}
 /**
  * {{.maturity}}
@@ -21,15 +21,15 @@ var typeCode = template.Must(template.New("enum").
 type {{.name}} = {{ Join .tokens " | "}};
 {{- if .default }}
 {{if .export}}export {{end -}}
-const {{.name}}Default: {{.name}} = {{.default}}{{end}}
-`))
+const {{ToLowerCamel .name}}Default: {{.name}} = {{.default}}{{end}}
+`)
 
 // Generate a typescript enum declaration. Inputs:
 // .maturity	Optional. Maturity level, applied in doc comment
 // .export		Whether to export the declaration
 // .name		  The name of the typescript enum
 // .pairs		  Slice of {K: string, V: string}
-var enumCode = template.Must(template.New("enum").Parse(`
+var enumCode = tmpl("enum", `
 {{- if .maturity -}}
 /**
  * {{.maturity}}
@@ -40,7 +40,7 @@ enum {{.name}} {
   {{- range .pairs}}
   {{.K}} = {{.V}},{{end}}
 }
-`))
+`)
 
 // Generate a typescript interface declaration. Inputs:
 // .maturity	Optional. Maturity level, applied in doc comment
@@ -48,8 +48,7 @@ enum {{.name}} {
 // .pairs		Slice of {K: string, V: string}
 // .extends		Slice of other interface names to extend
 // .defaults	Whether to generate a default const
-var interfaceCode = template.Must(template.New("interface").
-	Funcs(template.FuncMap{"Join": strings.Join}).Parse(`
+var interfaceCode = tmpl("interface", `
 {{- if .maturity -}}
 /**
  * {{.maturity}}
@@ -62,8 +61,18 @@ interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{e
 }
 {{- if .defaults }}
 {{if .export}}export {{end -}}
-const {{.name}}Default: {{.name}} = {
+const {{ToLowerCamel .name}}Default: {{.name}} = {
   {{- range .pairs}}{{if .Default}}
   {{.K}}: {{.Default}},{{end}}{{end}}
 }{{end}}
-`))
+`)
+
+func tmpl(name, data string) *template.Template {
+	t := template.New(name)
+	t.Funcs(template.FuncMap{
+		"Join": strings.Join,
+		"ToLowerCamel": strcase.ToLowerCamel,
+	})
+	t = template.Must(t.Parse(data))
+	return t
+}

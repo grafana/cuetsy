@@ -3,6 +3,7 @@ package encoder
 import (
 	"bytes"
 	"fmt"
+	"github.com/iancoleman/strcase"
 	gast "go/ast"
 	"math/bits"
 	"os"
@@ -428,7 +429,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			g.addErr(err)
 			kv.Default = dStr
 			if _, r := d.Reference(); len(r) > 0 {
-				kv.Default += "Default"
+				kv.Default = strcase.ToLowerCamel(kv.Default+"Default")
 			}
 			tvars["defaults"] = true
 		}
