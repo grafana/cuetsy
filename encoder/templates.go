@@ -40,6 +40,9 @@ enum {{.name}} {
   {{- range .pairs}}
   {{.K}} = {{.V}},{{end}}
 }
+{{- if .default }}
+{{if .export}}export {{end -}}
+const {{ToLowerCamel .name}}Default: {{.name}} = {{.name}}.{{.default}}{{end}}
 `)
 
 // Generate a typescript interface declaration. Inputs:
