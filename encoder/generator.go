@@ -486,7 +486,9 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		kv := KV{K:k, V:vstr}
 
 		d, ok := fields.Value().Default()
-		if ok {
+		// [...number] results in [], which is not desired
+		// TODO: There must be a better way to handle this
+		if ok && d.IncompleteKind() != cue.ListKind {
 			dStr, err := tsprintField(d)
 			g.addErr(err)
 			kv.Default = dStr
