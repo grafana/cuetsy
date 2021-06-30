@@ -50,8 +50,8 @@ type Config struct {
 // TODO use txtar to set up a buncha test cases
 
 // Generate takes a cue.Instance and generates the corresponding Typescript.
-func Generate(inst *cue.Instance, c Config) (b []byte, err error) {
-	if err = inst.Value().Validate(); err != nil {
+func Generate(val cue.Value, c Config) (b []byte, err error) {
+	if err = val.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -60,13 +60,13 @@ func Generate(inst *cue.Instance, c Config) (b []byte, err error) {
 	}
 
 	g := &generator{
-		c:    c,
-		inst: inst,
+		c:   c,
+		val: &val,
 	}
 	// TODO select codegen logic to execute based on package-level attr (compare to: proto2, proto3)
 	// TODO how the hell do we require the input artifacts to be versioned
 
-	iter, err := inst.Value().Fields(cue.Definitions(true))
+	iter, err := val.Fields(cue.Definitions(true))
 	if err != nil {
 		errors.Print(os.Stderr, err, &errors.Config{Cwd: "."})
 		os.Exit(1)
@@ -80,10 +80,10 @@ func Generate(inst *cue.Instance, c Config) (b []byte, err error) {
 }
 
 type generator struct {
-	inst *cue.Instance
-	c    Config
-	w    bytes.Buffer
-	err  errors.Error
+	val *cue.Value
+	c   Config
+	w   bytes.Buffer
+	err errors.Error
 }
 
 func (g *generator) addErr(err error) {
@@ -341,7 +341,8 @@ func (g *generator) genInterface(name string, v cue.Value) {
 				if err != nil {
 					return err
 				}
-				lv := g.inst.Lookup(label)
+				lv := g.val.LookupPath(cue.MakePath(cue.Str((label))))
+
 				if !lv.Exists() {
 					return valError(dvals[1], "should be unreachable, as the identifier must have a valid referent to pass earlier validation")
 				}

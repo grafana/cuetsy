@@ -37,7 +37,7 @@ func main() {
 	// Given the above input constraints, there _should_ only ever be a
 	// single element in this slice.
 	for _, inst := range instances {
-		b, err := encoder.Generate(inst, encoder.Config{})
+		b, err := encoder.Generate(inst.Value(), encoder.Config{})
 		if err != nil {
 			errors.Print(os.Stderr, err, &errors.Config{
 				Cwd: wd,
