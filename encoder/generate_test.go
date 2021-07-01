@@ -34,8 +34,7 @@ func TestGenerate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			out, err := encoder.Generate(i, encoder.Config{})
+			out, err := encoder.Generate(i.Value(), encoder.Config{})
 			if err != nil {
 				t.Fatal(err)
 			}
