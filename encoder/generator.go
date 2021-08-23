@@ -16,7 +16,8 @@ import (
 )
 
 const attrname = "cuetsy"
-const attrkey = "targetType"
+
+var attrkey = [...]string{"kind", "targetType"}
 
 type attrTSTarget string
 
@@ -606,14 +607,24 @@ func getTSTarget(v cue.Value) (attrTSTarget, error) {
 		return "", a.Err()
 	}
 
-	tt, found, err := a.Lookup(0, "targetType")
+	var tt, val string
+	var found bool
+	var err error
+
+	for _, attr := range attrkey {
+		val, found, err = a.Lookup(0, attr)
+		if err != nil {
+			return "", err
+		}
+		if found {
+			tt = val
+			break
+		}
+	}
+
 	if !found {
 		return "", valError(v, "no value for the %q key in @%s attribute", attrkey, attrname)
 	}
-	if err != nil {
-		return "", err
-	}
-
 	return attrTSTarget(tt), nil
 }
 
