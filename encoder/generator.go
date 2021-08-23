@@ -10,14 +10,19 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/iancoleman/strcase"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
 )
 
-const attrname = "cuetsy"
+const (
+	attrname        = "cuetsy"
+	attrEnumDefault = "enumDefault"
+)
 
-var attrkey = [...]string{"kind", "targetType"}
+var attrTarget = [...]string{"kind", "targetType"}
 
 type attrTSTarget string
 
@@ -176,18 +181,29 @@ func (g *generator) genType(name string, v cue.Value) {
 
 	tvars["tokens"] = tokens
 
+	d, ok := v.Default()
+	if ok {
+		dStr, err := tsprintField(d)
+		g.addErr(err)
+		tvars["default"] = dStr
+	}
+
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
 	g.exec(typeCode, tvars)
 }
 
-type KV struct{ K, V string }
+type KV struct {
+	K, V    string
+	Default string
+}
 
 // genEnum turns the following cue values into typescript enums:
 // - value disjunction (a | b | c): values are taken as is, keys implicitely generated as CamelCase
 // - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) {
 	var pairs []KV
+	var defaultValue string
 	tvars := map[string]interface{}{
 		"name":   name,
 		"export": true,
@@ -202,12 +218,23 @@ func (g *generator) genEnum(name string, v cue.Value) {
 			g.addErr(err)
 		}
 		pairs = orPairs
+
+		def, ok := v.Default()
+		if ok {
+			dStr, err := tsprintField(def)
+			g.addErr(err)
+			defaultValue = strings.Title(strings.Trim(dStr, "'"))
+		}
 	case v.IncompleteKind() == cue.StructKind:
 		structPairs, err := genStructEnum(v)
 		if err != nil {
 			g.addErr(err)
 		}
 		pairs = structPairs
+
+		def, err := structEnumDefault(v)
+		g.addErr(err)
+		defaultValue = def
 	default:
 		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings or structs"))
 		return
@@ -217,6 +244,10 @@ func (g *generator) genEnum(name string, v cue.Value) {
 		return pairs[i].K < pairs[j].K
 	})
 	tvars["pairs"] = pairs
+
+	if defaultValue != "" {
+		tvars["default"] = defaultValue
+	}
 
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
@@ -260,8 +291,50 @@ func genStructEnum(v cue.Value) ([]KV, error) {
 	return pairs, nil
 }
 
+// structEnumDefault finds the default field of a struct enum.
+// That is the single field that holds the @cuetsy(enumDefault) flag.
+func structEnumDefault(v cue.Value) (string, error) {
+	fields, err := v.Fields()
+	if err != nil {
+		return "", err
+	}
+
+	var defaultValue *cue.Value
+	for fields.Next() {
+		a := fields.Value().Attribute(attrname)
+		if a.Err() != nil {
+			// no @cuetsy, this is not our default
+			continue
+		}
+
+		ok, err := a.Flag(0, attrEnumDefault)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			// not our default
+			continue
+		}
+		if defaultValue != nil {
+			// we already have a default, it must not be ambigous
+			a, _ := defaultValue.Label()
+			b, _ := fields.Value().Label()
+			return "", valError(v, "Only one enum field may be marked as default, both '%s' and '%s' are", a, b)
+		}
+		v := fields.Value()
+		defaultValue = &v
+	}
+
+	// found no default value
+	if defaultValue == nil {
+		return "", nil
+	}
+
+	l, _ := defaultValue.Label()
+	return l, nil
+}
+
 func (g *generator) genInterface(name string, v cue.Value) {
-	type KV struct{ K, V string }
 	var pairs []KV
 	tvars := map[string]interface{}{
 		"name":    name,
@@ -412,7 +485,23 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			g.addErr(err)
 			return
 		}
-		pairs = append(pairs, KV{K: k, V: vstr})
+
+		kv := KV{K: k, V: vstr}
+
+		d, ok := fields.Value().Default()
+		// [...number] results in [], which is not desired
+		// TODO: There must be a better way to handle this
+		if ok && d.IncompleteKind() != cue.ListKind {
+			dStr, err := tsprintField(d)
+			g.addErr(err)
+			kv.Default = dStr
+			if _, r := d.Reference(); len(r) > 0 {
+				kv.Default = strcase.ToLowerCamel(kv.Default + "Default")
+			}
+			tvars["defaults"] = true
+		}
+
+		pairs = append(pairs, kv)
 	}
 
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
@@ -436,7 +525,8 @@ func tsprintField(v cue.Value) (string, error) {
 
 	op, dvals := v.Expr()
 	// Eliminate concretes first, to make handling the others easier.
-	switch v.Kind() {
+	k := v.Kind()
+	switch k {
 	case cue.StructKind:
 		switch s := v.Source().(type) {
 		case *ast.StructLit:
@@ -611,7 +701,7 @@ func getTSTarget(v cue.Value) (attrTSTarget, error) {
 	var found bool
 	var err error
 
-	for _, attr := range attrkey {
+	for _, attr := range attrTarget {
 		val, found, err = a.Lookup(0, attr)
 		if err != nil {
 			return "", err
@@ -623,7 +713,7 @@ func getTSTarget(v cue.Value) (attrTSTarget, error) {
 	}
 
 	if !found {
-		return "", valError(v, "no value for the %q key in @%s attribute", attrkey, attrname)
+		return "", valError(v, "no value for the %q key in @%s attribute", attrTarget, attrname)
 	}
 	return attrTSTarget(tt), nil
 }
