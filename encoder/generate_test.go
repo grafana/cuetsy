@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sdboyer/cuetsy/encoder"
 	"golang.org/x/tools/txtar"
+	"gotest.tools/assert"
 )
 
 const CasesDir = "tests"
@@ -73,4 +74,16 @@ func loadCases(dir string) ([]Case, error) {
 	}
 
 	return cases, nil
+}
+
+func TestErrorCases(t *testing.T) {
+	t.Run("If attributes and enum length are not equal", func(t *testing.T) {
+		var r cue.Runtime
+		i, err := r.Compile("errorCase1.cue", []byte(`E3: "a" | "b" | "c" @cuetsy(targetType="enum",memberNames="a|b")`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = encoder.Generate(i.Value(), encoder.Config{})
+		assert.Error(t, err, "typescript enums and memberNames attributes size doesn't match")
+	})
 }

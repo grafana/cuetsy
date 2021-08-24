@@ -3,13 +3,14 @@ package encoder
 import (
 	"bytes"
 	"fmt"
-	"github.com/iancoleman/strcase"
 	gast "go/ast"
 	"math/bits"
 	"os"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/iancoleman/strcase"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -20,6 +21,7 @@ const attrname = "cuetsy"
 const (
 	attrTarget      = "targetType"
 	attrEnumDefault = "enumDefault"
+	attrEnumMembers = "memberNames"
 )
 
 type attrTSTarget string
@@ -28,6 +30,13 @@ const (
 	tgtType      attrTSTarget = "type"
 	tgtInterface attrTSTarget = "interface"
 	tgtEnum      attrTSTarget = "enum"
+)
+
+type enumValCofig int
+
+const (
+	enumCamalCase enumValCofig = 0
+	enumAttribute enumValCofig = 1
 )
 
 // An ImportMapper takes an ImportDecl and returns a string indicating the
@@ -197,7 +206,8 @@ type KV struct {
 }
 
 // genEnum turns the following cue values into typescript enums:
-// - value disjunction (a | b | c): values are taken as is, keys implicitely generated as CamelCase
+// - value disjunction (a | b | c): values are taken as attribut memberNames,
+//   if memberNames is absent, then keys implicitely generated as CamelCase
 // - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) {
 	var pairs []KV
@@ -253,11 +263,32 @@ func (g *generator) genEnum(name string, v cue.Value) {
 }
 
 func genOrEnum(v cue.Value) ([]KV, error) {
+
 	_, dvals := v.Expr()
+	a := v.Attribute(attrname)
+
+	var enumValType enumValCofig
+	var evals []string
+	if a.Err() == nil {
+		val, found, err := a.Lookup(0, attrEnumMembers)
+		if err == nil && found {
+			enumValType = enumAttribute
+			evals = strings.Split(val, "|")
+			if len(evals) != len(dvals) {
+				return nil, valError(v, "typescript enums and %s attributes size doesn't match", attrEnumMembers)
+			}
+		}
+	}
 
 	var pairs []KV
-	for _, dv := range dvals {
-		text, _ := dv.String()
+	for idx, dv := range dvals {
+		var text string
+		if enumValType == enumAttribute {
+			text = evals[idx]
+		} else {
+			text, _ = dv.String()
+		}
+
 		if !dv.IsConcrete() {
 			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings")
 		}
