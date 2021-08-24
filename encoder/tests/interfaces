@@ -7,6 +7,7 @@ Verifies common struct (aka interface) properties:
 -- cue --
 E1: "e1str1" | "e1str2" | "e1str3" @cuetsy(targetType="enum")
 E2: "e2str1" | "e2str2" | "e2str3" | "e2str4" @cuetsy(targetType="enum")
+E3: "e2str1" | "e2str2" | "e2str3" | "e2str4" @cuetsy(targetType="enum", withName="Sam")
 
 I1: {
   I1_OptionalDisjunctionLiteral?: "other" | "values" | 2
@@ -37,6 +38,12 @@ I5: I2 & {
 
 I6: I2 & I3 @cuetsy(targetType="interface")
 
+I7: {
+  I3_EnumReference: E1
+  I3_OptionalString?: string
+  I3_OptionalNumber?: number
+} @cuetsy(targetType="interface", withName="Sam2")
+
 -- ts  --
 export enum E1 {
   E1str1 = 'e1str1',
@@ -44,6 +51,12 @@ export enum E1 {
   E1str3 = 'e1str3',
 }
 export enum E2 {
+  E2str1 = 'e2str1',
+  E2str2 = 'e2str2',
+  E2str3 = 'e2str3',
+  E2str4 = 'e2str4',
+}
+export enum Sam {
   E2str1 = 'e2str1',
   E2str2 = 'e2str2',
   E2str3 = 'e2str3',
@@ -72,4 +85,9 @@ export interface I5 extends I2, I3 {
   I5_OptionalEnumReference?: E2;
 }
 export interface I6 extends I2, I3 {
+}
+export interface Sam2 {
+  I3_EnumReference: E1;
+  I3_OptionalNumber?: number;
+  I3_OptionalString?: string;
 }

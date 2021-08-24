@@ -3,13 +3,14 @@ package encoder
 import (
 	"bytes"
 	"fmt"
-	"github.com/iancoleman/strcase"
 	gast "go/ast"
 	"math/bits"
 	"os"
 	"sort"
 	"strings"
 	"text/template"
+
+	"github.com/iancoleman/strcase"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -20,6 +21,7 @@ const attrname = "cuetsy"
 const (
 	attrTarget      = "targetType"
 	attrEnumDefault = "enumDefault"
+	attrWithName    = "withName"
 )
 
 type attrTSTarget string
@@ -77,7 +79,15 @@ func Generate(val cue.Value, c Config) (b []byte, err error) {
 	}
 
 	for iter.Next() {
-		g.decl(iter.Label(), iter.Value())
+		name := iter.Label()
+		a := iter.Value().Attribute(attrname)
+		if a.Err() == nil {
+			val, found, err := a.Lookup(0, attrWithName)
+			if err == nil && found {
+				name = val
+			}
+		}
+		g.decl(name, iter.Value())
 	}
 
 	return g.w.Bytes(), g.err
