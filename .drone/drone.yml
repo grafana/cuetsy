@@ -35,4 +35,8 @@ steps:
   depends_on:
   - download
 
+---
+kind: signature
+hmac: 27e9124f010ea02719fed325246799697d827ceb9dcf7d742fb30fb45372b728
+
 ...
