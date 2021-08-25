@@ -283,69 +283,6 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 	return pairs, nil
 }
 
-func genStructEnum(v cue.Value) ([]KV, error) {
-	var pairs []KV
-	fields, err := v.Fields()
-	if err != nil {
-		return nil, err
-	}
-
-	for fields.Next() {
-		k := fields.Label()
-		v := fields.Value()
-		if v.IncompleteKind() != cue.StringKind {
-			return nil, valError(v, "Only string fields are permitted in struct enums")
-		}
-
-		pairs = append(pairs, KV{K: k, V: tsprintConcrete(v)})
-	}
-
-	return pairs, nil
-}
-
-// structEnumDefault finds the default field of a struct enum.
-// That is the single field that holds the @cuetsy(enumDefault) flag.
-func structEnumDefault(v cue.Value) (string, error) {
-	fields, err := v.Fields()
-	if err != nil {
-		return "", err
-	}
-
-	var defaultValue *cue.Value
-	for fields.Next() {
-		a := fields.Value().Attribute(attrname)
-		if a.Err() != nil {
-			// no @cuetsy, this is not our default
-			continue
-		}
-
-		ok, err := a.Flag(0, attrEnumDefault)
-		if err != nil {
-			return "", err
-		}
-		if !ok {
-			// not our default
-			continue
-		}
-		if defaultValue != nil {
-			// we already have a default, it must not be ambigous
-			a, _ := defaultValue.Label()
-			b, _ := fields.Value().Label()
-			return "", valError(v, "Only one enum field may be marked as default, both '%s' and '%s' are", a, b)
-		}
-		v := fields.Value()
-		defaultValue = &v
-	}
-
-	// found no default value
-	if defaultValue == nil {
-		return "", nil
-	}
-
-	l, _ := defaultValue.Label()
-	return l, nil
-}
-
 func (g *generator) genInterface(name string, v cue.Value) {
 	var pairs []KV
 	tvars := map[string]interface{}{
