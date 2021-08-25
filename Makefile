@@ -21,6 +21,13 @@ uninstall:
 	go clean -i ./cmd/cuetsy
 
 # CI
+# Export environment variables from here: https://drone.grafana.net/account
+# Only Grafana employees can regenerate the CI configuration
+# A temp file is created to make sure the `sign` command succeeds
+# For more info: https://github.com/grafana/deployment_tools/blob/master/docs/infrastructure/drone/signing.md
 drone:
-	cue export ./.drone/drone.cue > .drone/drone.yml
-	drone fmt --save .drone/drone.yml
+	cue export ./.drone/drone.cue > .drone/drone.tmp.yml
+	drone fmt --save .drone/drone.tmp.yml
+	drone lint .drone/drone.tmp.yml
+	drone sign --save grafana/cuetsy .drone/drone.tmp.yml
+	mv .drone/drone.tmp.yml .drone/drone.yml
