@@ -6,13 +6,13 @@ Verifies defaults from structs (interfaces) work
 -- cue  --
 package cuetsy
 
-AType: "foo" | "bar" | *"baz" @cuetsy(targetType="type")
+AType: "foo" | "bar" | *"baz" @cuetsy(kind="type")
 
 Foo: {
   Bar: string | *"ohai"
   Baz: int | *4
   C: AType
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 
 -- ts  --
 export type AType = 'foo' | 'bar' | 'baz';
