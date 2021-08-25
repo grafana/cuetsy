@@ -226,18 +226,8 @@ func (g *generator) genEnum(name string, v cue.Value) {
 			g.addErr(err)
 			defaultValue = strings.Title(strings.Trim(dStr, "'"))
 		}
-	case v.IncompleteKind() == cue.StructKind:
-		structPairs, err := genStructEnum(v)
-		if err != nil {
-			g.addErr(err)
-		}
-		pairs = structPairs
-
-		def, err := structEnumDefault(v)
-		g.addErr(err)
-		defaultValue = def
 	default:
-		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings or structs"))
+		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings"))
 		return
 	}
 

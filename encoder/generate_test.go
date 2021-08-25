@@ -16,8 +16,16 @@ import (
 
 const CasesDir = "tests"
 
+type TestCaseType int
+
+const (
+	TSType    TestCaseType = 0
+	ErrorType TestCaseType = 1
+)
+
 type Case struct {
-	Name string
+	CaseType TestCaseType
+	Name     string
 
 	CUE   string
 	TS    string
@@ -38,13 +46,12 @@ func TestGenerate(t *testing.T) {
 				t.Fatal(err)
 			}
 			out, err := encoder.Generate(i.Value(), encoder.Config{})
-			if c.ERROR != "" {
+			if c.CaseType == ErrorType {
 				assert.Error(t, err, c.ERROR)
 			} else {
 				if err != nil {
 					t.Fatal(err)
 				}
-
 				if s := cmp.Diff(c.TS, string(out)); s != "" {
 					t.Fatal(s)
 				}
@@ -73,18 +80,19 @@ func loadCases(dir string) ([]Case, error) {
 		}
 		if strings.HasSuffix(fi.Name(), "error") {
 			cases = append(cases, Case{
-				Name:  fi.Name(),
-				CUE:   string(a.Files[0].Data),
-				ERROR: strings.TrimSuffix(string(a.Files[1].Data), "\n"),
+				CaseType: ErrorType,
+				Name:     fi.Name(),
+				CUE:      string(a.Files[0].Data),
+				ERROR:    strings.TrimSuffix(string(a.Files[1].Data), "\n"),
 			})
 		} else {
 			cases = append(cases, Case{
-				Name: fi.Name(),
-				CUE:  string(a.Files[0].Data),
-				TS:   string(a.Files[1].Data),
+				CaseType: TSType,
+				Name:     fi.Name(),
+				CUE:      string(a.Files[0].Data),
+				TS:       string(a.Files[1].Data),
 			})
 		}
 	}
-
 	return cases, nil
 }

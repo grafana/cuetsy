@@ -1,0 +1,14 @@
+-- cue --
+TableCellDisplayMode: {
+  Auto: "auto",
+  ColorText: "color-text",
+  ColorBackground: "color-background",
+  GradientGauge: "gradient-gauge",
+  LcdGauge: "lcd-gauge",
+  JSONView: "json-view",
+  BasicGauge: "basic",
+  Image: "image",
+} @cuetsy(kind="enum")
+
+-- err --
+typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings

@@ -1,0 +1,4 @@
+-- cue --
+ErrNamelessNumerics: 0 | 1 | 2 @cuetsy(kind="enum")
+
+-- err --
