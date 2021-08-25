@@ -32,13 +32,6 @@ const (
 	tgtEnum      attrTSTarget = "enum"
 )
 
-type enumValCofig int
-
-const (
-	enumCamalCase enumValCofig = 0
-	enumAttribute enumValCofig = 1
-)
-
 // An ImportMapper takes an ImportDecl and returns a string indicating the
 // import statement that should be used in the corresponding typescript, or
 // an error if no mapping can be made.
@@ -267,12 +260,12 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 	_, dvals := v.Expr()
 	a := v.Attribute(attrname)
 
-	var enumValType enumValCofig
+	var attrMemberNameExist bool
 	var evals []string
 	if a.Err() == nil {
 		val, found, err := a.Lookup(0, attrEnumMembers)
 		if err == nil && found {
-			enumValType = enumAttribute
+			attrMemberNameExist = true
 			evals = strings.Split(val, "|")
 			if len(evals) != len(dvals) {
 				return nil, valError(v, "typescript enums and %s attributes size doesn't match", attrEnumMembers)
@@ -283,7 +276,7 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 	var pairs []KV
 	for idx, dv := range dvals {
 		var text string
-		if enumValType == enumAttribute {
+		if attrMemberNameExist {
 			text = evals[idx]
 		} else {
 			text, _ = dv.String()

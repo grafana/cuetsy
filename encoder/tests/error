@@ -1,0 +1,5 @@
+-- cue --
+E3: "a" | "b" | "c" @cuetsy(kind="enum",memberNames="a|b")
+
+-- err  --
+typescript enums and memberNames attributes size doesn't match

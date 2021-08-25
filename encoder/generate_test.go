@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/pkg/strings"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sdboyer/cuetsy/encoder"
 	"golang.org/x/tools/txtar"
@@ -18,8 +19,9 @@ const CasesDir = "tests"
 type Case struct {
 	Name string
 
-	CUE string
-	TS  string
+	CUE   string
+	TS    string
+	ERROR string
 }
 
 func TestGenerate(t *testing.T) {
@@ -36,12 +38,16 @@ func TestGenerate(t *testing.T) {
 				t.Fatal(err)
 			}
 			out, err := encoder.Generate(i.Value(), encoder.Config{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			if c.ERROR != "" {
+				assert.Error(t, err, c.ERROR)
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			if s := cmp.Diff(c.TS, string(out)); s != "" {
-				t.Fatal(s)
+				if s := cmp.Diff(c.TS, string(out)); s != "" {
+					t.Fatal(s)
+				}
 			}
 		})
 	}
@@ -63,27 +69,22 @@ func loadCases(dir string) ([]Case, error) {
 		}
 
 		if len(a.Files) != 2 {
-			return nil, fmt.Errorf("Malformed test case '%s': Must contain exactly two files (CUE and TS), but has %d", file, len(a.Files))
+			return nil, fmt.Errorf("Malformed test case '%s': Must contain exactly two files (CUE and TS/ERR), but has %d", file, len(a.Files))
 		}
-
-		cases = append(cases, Case{
-			Name: fi.Name(),
-			CUE:  string(a.Files[0].Data),
-			TS:   string(a.Files[1].Data),
-		})
+		if strings.HasSuffix(fi.Name(), "error") {
+			cases = append(cases, Case{
+				Name:  fi.Name(),
+				CUE:   string(a.Files[0].Data),
+				ERROR: strings.TrimSuffix(string(a.Files[1].Data), "\n"),
+			})
+		} else {
+			cases = append(cases, Case{
+				Name: fi.Name(),
+				CUE:  string(a.Files[0].Data),
+				TS:   string(a.Files[1].Data),
+			})
+		}
 	}
 
 	return cases, nil
-}
-
-func TestErrorCases(t *testing.T) {
-	t.Run("If attributes and enum length are not equal", func(t *testing.T) {
-		var r cue.Runtime
-		i, err := r.Compile("errorCase1.cue", []byte(`E3: "a" | "b" | "c" @cuetsy(targetType="enum",memberNames="a|b")`))
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = encoder.Generate(i.Value(), encoder.Config{})
-		assert.Error(t, err, "typescript enums and memberNames attributes size doesn't match")
-	})
 }
