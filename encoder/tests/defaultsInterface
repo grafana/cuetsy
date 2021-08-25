@@ -7,23 +7,32 @@ Verifies defaults from structs (interfaces) work
 package cuetsy
 
 AType: "foo" | "bar" | *"baz" @cuetsy(kind="type")
+ATypedList: [...int] | *[1,2] @cuetsy(kind="type")
 
 Foo: {
   Bar: string | *"ohai"
   Baz: int | *4
   C: AType
+  I1_TypedList: [...int] | *[1,2]
+  I2_TypedList: ATypedList
 } @cuetsy(kind="interface")
 
 -- ts  --
 export type AType = 'foo' | 'bar' | 'baz';
 export const aTypeDefault: AType = 'baz'
+export type ATypedList = number[];
+export const aTypedListDefault: ATypedList = [1, 2]
 export interface Foo {
   Bar: string;
   Baz: number;
   C: AType;
+  I1_TypedList: number[];
+  I2_TypedList: ATypedList;
 }
 export const fooDefault: Foo = {
   Bar: 'ohai',
   Baz: 4,
   C: aTypeDefault,
+  I1_TypedList: [1, 2],
+  I2_TypedList: aTypedListDefault,
 }
