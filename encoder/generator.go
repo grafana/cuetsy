@@ -20,9 +20,8 @@ import (
 const (
 	attrname        = "cuetsy"
 	attrEnumDefault = "enumDefault"
+	attrKind        = "kind"
 )
-
-var attrTarget = [...]string{"kind", "targetType"}
 
 type attrTSTarget string
 
@@ -697,23 +696,13 @@ func getTSTarget(v cue.Value) (attrTSTarget, error) {
 		return "", a.Err()
 	}
 
-	var tt, val string
-	var found bool
-	var err error
-
-	for _, attr := range attrTarget {
-		val, found, err = a.Lookup(0, attr)
-		if err != nil {
-			return "", err
-		}
-		if found {
-			tt = val
-			break
-		}
+	tt, found, err := a.Lookup(0, attrKind)
+	if err != nil {
+		return "", err
 	}
 
 	if !found {
-		return "", valError(v, "no value for the %q key in @%s attribute", attrTarget, attrname)
+		return "", valError(v, "no value for the %q key in @%s attribute", attrKind, attrname)
 	}
 	return attrTSTarget(tt), nil
 }

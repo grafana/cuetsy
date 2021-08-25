@@ -37,14 +37,6 @@ I5: I2 & {
 
 I6: I2 & I3 @cuetsy(kind="interface")
 
-I7: {
-  I3_EnumReference: E1
-  I3_OptionalString?: string
-  I3_OptionalNumber?: number
-} @cuetsy(kind="interface")
-
-I8: I2 & I7 @cuetsy(targetType="interface")
-
 -- ts  --
 export enum E1 {
   E1str1 = 'e1str1',
@@ -80,11 +72,4 @@ export interface I5 extends I2, I3 {
   I5_OptionalEnumReference?: E2;
 }
 export interface I6 extends I2, I3 {
-}
-export interface I7 {
-  I3_EnumReference: E1;
-  I3_OptionalNumber?: number;
-  I3_OptionalString?: string;
-}
-export interface I8 extends I2, I7 {
 }
