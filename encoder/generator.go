@@ -3,7 +3,6 @@ package encoder
 import (
 	"bytes"
 	"fmt"
-	"github.com/iancoleman/strcase"
 	gast "go/ast"
 	"math/bits"
 	"os"
@@ -11,15 +10,17 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/iancoleman/strcase"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
 )
 
-const attrname = "cuetsy"
 const (
-	attrTarget      = "targetType"
+	attrname        = "cuetsy"
 	attrEnumDefault = "enumDefault"
+	attrKind        = "kind"
 )
 
 type attrTSTarget string
@@ -695,14 +696,14 @@ func getTSTarget(v cue.Value) (attrTSTarget, error) {
 		return "", a.Err()
 	}
 
-	tt, found, err := a.Lookup(0, "targetType")
-	if !found {
-		return "", valError(v, "no value for the %q key in @%s attribute", attrTarget, attrname)
-	}
+	tt, found, err := a.Lookup(0, attrKind)
 	if err != nil {
 		return "", err
 	}
 
+	if !found {
+		return "", valError(v, "no value for the %q key in @%s attribute", attrKind, attrname)
+	}
 	return attrTSTarget(tt), nil
 }
 

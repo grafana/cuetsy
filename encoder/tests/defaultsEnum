@@ -5,12 +5,12 @@ Verifies default value generation for enums
 -- cue --
 package cuetsy
 
-OrEnum: "foo" | "bar" | *"baz" @cuetsy(targetType="enum")
+OrEnum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
 
 StructEnum: {
    Walla: "laadeedaa" @cuetsy(enumDefault)
    run: "OMG"
-} @cuetsy(targetType="enum")
+} @cuetsy(kind="enum")
 
 -- ts  --
 export enum OrEnum {
