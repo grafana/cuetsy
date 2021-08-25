@@ -213,18 +213,16 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
 	op, _ := v.Expr()
 	switch {
-	case op == cue.OrOp && v.IncompleteKind() == cue.StringKind:
+	case op == cue.OrOp && (v.IncompleteKind() == cue.StringKind || v.IncompleteKind() == cue.IntKind ||
+		v.IncompleteKind() == cue.NumberKind || v.IncompleteKind() == cue.FloatKind):
 		orPairs, err := genOrEnum(v)
 		if err != nil {
 			g.addErr(err)
 		}
 		pairs = orPairs
-
-		def, ok := v.Default()
-		if ok {
-			dStr, err := tsprintField(def)
+		defaultValue, err = getDefaultValue(v)
+		if err != nil {
 			g.addErr(err)
-			defaultValue = strings.Title(strings.Trim(dStr, "'"))
 		}
 	default:
 		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings"))
@@ -245,8 +243,24 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	g.exec(enumCode, tvars)
 }
 
-func genOrEnum(v cue.Value) ([]KV, error) {
+func getDefaultValue(v cue.Value) (string, error) {
+	def, ok := v.Default()
+	if ok {
+		if v.IncompleteKind() == cue.StringKind {
+			dStr, err := tsprintField(def)
+			if err != nil {
+				return "", err
+			}
+			return strings.Title(strings.Trim(dStr, "'")), nil
+		} else {
+			// For Int, Float, Numeric we need to find the default value and its corresponding memberName value
+			return "", nil
+		}
+	}
+	return "", def.Err()
+}
 
+func genOrEnum(v cue.Value) ([]KV, error) {
 	_, dvals := v.Expr()
 	a := v.Attribute(attrname)
 
@@ -261,6 +275,11 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 				return nil, valError(v, "typescript enums and %s attributes size doesn't match", attrEnumMembers)
 			}
 		}
+	}
+
+	// We only allowed String Enum to be generated without memberName attribute
+	if v.IncompleteKind() != cue.StringKind && !attrMemberNameExist {
+		return nil, valError(v, "typescript numeric enums may only be generated from memberNames attribute")
 	}
 
 	var pairs []KV
