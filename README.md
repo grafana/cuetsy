@@ -41,18 +41,18 @@
 <td>
 
 ```cue
-DiceFaces: 1 | 2 | 3 | 4 | 5 | 6 @cuetsy(targetType="type")
+DiceFaces: 1 | 2 | 3 | 4 | 5 | 6 @cuetsy(kind="type")
 
 Animal: {
     Name: string
     Sound: string
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 
 LeggedAnimal: Animal & {
     Legs: int
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 
-Pets: "Cat" | "Dog" | "Horse" @cuetsy(targetType="enum")
+Pets: "Cat" | "Dog" | "Horse" @cuetsy(kind="enum")
 ```
 
 </td>
@@ -109,7 +109,7 @@ This will create a logically equivalent `[file].ts`
 
 ### Union Types
 
-| CUE                                                                        | TypeScript                                                                                   | `@cuetsy(targetType)` |
+| CUE                                                                        | TypeScript                                                                                   | `@cuetsy(kind)` |
 | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------- |
 | [Disjunction](https://cuelang.org/docs/tutorials/tour/types/disjunctions/) | [Union Type](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types) | `type`                |
 
@@ -122,7 +122,7 @@ series of disjunctions (`a | b | c`):
 <td>
 
 ```cue
-MyUnion: 1 | 2 | 3 | 4 | 5 | 6 @cuetsy(targetType="type")
+MyUnion: 1 | 2 | 3 | 4 | 5 | 6 @cuetsy(kind="type")
 ```
 
 </td>
@@ -138,7 +138,7 @@ export type MyUnion = 1 | 2 | 3 | 4 | 5 | 6;
 
 ### Interfaces
 
-| CUE                                                               | TypeScript                                                                                 | `@cuetsy(targetType)` |
+| CUE                                                               | TypeScript                                                                                 | `@cuetsy(kind)` |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------- |
 | [Struct](https://cuelang.org/docs/tutorials/tour/types/optional/) | [Interface](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#interfaces) | `interface`           |
 
@@ -159,7 +159,7 @@ MyInterface: {
     Text: string
     List: [...number]
     Truth: bool
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 ```
 
 </td>
@@ -191,11 +191,11 @@ using the union operator `&`:
 ```cue
 AInterface: {
     AField: string
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 
 BInterface: AInterface & {
     BField: int
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 ```
 
 </td>
@@ -216,7 +216,7 @@ export interface BInterface extends AInterface {
 
 ### Enums
 
-| CUE                                                                                                                                           | TypeScript                                                                       | `@cuetsy(targetType)` |
+| CUE                                                                                                                                           | TypeScript                                                                       | `@cuetsy(kind)` |
 | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------- |
 | [Disjunction](https://cuelang.org/docs/tutorials/tour/types/disjunctions/), [Struct](https://cuelang.org/docs/tutorials/tour/types/optional/) | [Enum](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#enums) | `enum`                |
 
@@ -233,7 +233,7 @@ enum are automatically inferred as the titled camel-case variant of their value:
 <td>
 
 ```cue
-MyEnum: "foo" | "bar" | "baz" @cuetsy(targetType="enum")
+MyEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
 ```
 
 </td>
@@ -265,7 +265,7 @@ control:
 MyEnum: {
     Foo: "foo"
     iCanChoose: "whateverILike"
-} @cuetsy(targetType="enum")
+} @cuetsy(kind="enum")
 ```
 
 </td>
@@ -299,19 +299,19 @@ definitions:
 <td>
 
 ```cue
-MyUnion: 1 | 2 | *3 @cuetsy(targetType="type")
+MyUnion: 1 | 2 | *3 @cuetsy(kind="type")
 
-MyDisjEnum: "foo" | *"bar" @cuetsy(targetType="enum")
+MyDisjEnum: "foo" | *"bar" @cuetsy(kind="enum")
 MyStructEnum: {
     A: "Foo"
     B: "Bar" @cuetsy(enumDefault)
-} @cuetsy(targetType="enum")
+} @cuetsy(kind="enum")
 
 MyInterface: {
     num: int | *6
     txt: string | *"CUE"
     enm: MyDisjEnum
-} @cuetsy(targetType="interface")
+} @cuetsy(kind="interface")
 ```
 
 </td>

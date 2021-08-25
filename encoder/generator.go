@@ -17,11 +17,11 @@ import (
 	"cuelang.org/go/cue/errors"
 )
 
-const attrname = "cuetsy"
 const (
-	attrTarget      = "targetType"
+	attrname        = "cuetsy"
 	attrEnumDefault = "enumDefault"
 	attrEnumMembers = "memberNames"
+	attrKind        = "kind"
 )
 
 type attrTSTarget string
@@ -726,14 +726,14 @@ func getTSTarget(v cue.Value) (attrTSTarget, error) {
 		return "", a.Err()
 	}
 
-	tt, found, err := a.Lookup(0, "targetType")
-	if !found {
-		return "", valError(v, "no value for the %q key in @%s attribute", attrTarget, attrname)
-	}
+	tt, found, err := a.Lookup(0, attrKind)
 	if err != nil {
 		return "", err
 	}
 
+	if !found {
+		return "", valError(v, "no value for the %q key in @%s attribute", attrKind, attrname)
+	}
 	return attrTSTarget(tt), nil
 }
 
