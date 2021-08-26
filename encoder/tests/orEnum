@@ -3,6 +3,8 @@ Verify that the disjunction enum style works
 -- cue --
 E1: "e1str1" | "e1str2" | "e1str3" @cuetsy(kind="enum")
 E2: "e2str1" | "e2str2" | "e2str3" | "e2str4" @cuetsy(kind="enum")
+E3: "e1str1" | "e1str2" | "e1str3" @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+E4: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
 
 -- ts  --
 export enum E1 {
@@ -15,4 +17,14 @@ export enum E2 {
   E2str2 = 'e2str2',
   E2str3 = 'e2str3',
   E2str4 = 'e2str4',
+}
+export enum E3 {
+  Bar = 'e1str2',
+  Foo = 'e1str1',
+  Zip = 'e1str3',
+}
+export enum E4 {
+  Bar = 2,
+  Foo = 1,
+  Zip = 3,
 }

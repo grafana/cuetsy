@@ -1,0 +1,5 @@
+-- cue --
+ErrNamelessNumerics: 0 | 1 | 2 @cuetsy(kind="enum")
+
+-- err --
+typescript numeric enums may only be generated from memberNames attribute

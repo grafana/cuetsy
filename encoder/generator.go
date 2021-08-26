@@ -20,6 +20,7 @@ import (
 const (
 	attrname        = "cuetsy"
 	attrEnumDefault = "enumDefault"
+	attrEnumMembers = "memberNames"
 	attrKind        = "kind"
 )
 
@@ -198,7 +199,8 @@ type KV struct {
 }
 
 // genEnum turns the following cue values into typescript enums:
-// - value disjunction (a | b | c): values are taken as is, keys implicitely generated as CamelCase
+// - value disjunction (a | b | c): values are taken as attribut memberNames,
+//   if memberNames is absent, then keys implicitely generated as CamelCase
 // - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) {
 	var pairs []KV
@@ -211,31 +213,19 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
 	op, _ := v.Expr()
 	switch {
-	case op == cue.OrOp && v.IncompleteKind() == cue.StringKind:
+	case op == cue.OrOp && (v.IncompleteKind() == cue.StringKind || v.IncompleteKind() == cue.IntKind ||
+		v.IncompleteKind() == cue.NumberKind || v.IncompleteKind() == cue.FloatKind):
 		orPairs, err := genOrEnum(v)
 		if err != nil {
 			g.addErr(err)
 		}
 		pairs = orPairs
-
-		def, ok := v.Default()
-		if ok {
-			dStr, err := tsprintField(def)
-			g.addErr(err)
-			defaultValue = strings.Title(strings.Trim(dStr, "'"))
-		}
-	case v.IncompleteKind() == cue.StructKind:
-		structPairs, err := genStructEnum(v)
+		defaultValue, err = getDefaultValue(v)
 		if err != nil {
 			g.addErr(err)
 		}
-		pairs = structPairs
-
-		def, err := structEnumDefault(v)
-		g.addErr(err)
-		defaultValue = def
 	default:
-		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete strings or structs"))
+		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings"))
 		return
 	}
 
@@ -253,12 +243,73 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	g.exec(enumCode, tvars)
 }
 
+func getDefaultValue(v cue.Value) (string, error) {
+	def, ok := v.Default()
+	if ok {
+		if v.IncompleteKind() == cue.StringKind {
+			dStr, err := tsprintField(def)
+			if err != nil {
+				return "", err
+			}
+			return strings.Title(strings.Trim(dStr, "'")), nil
+		} else {
+			// For Int, Float, Numeric we need to find the default value and its corresponding memberName value
+			var idx int
+			_, dvals := v.Expr()
+			a := v.Attribute(attrname)
+			var evals []string
+			if a.Err() == nil {
+				val, found, err := a.Lookup(0, attrEnumMembers)
+				if err == nil && found {
+					evals = strings.Split(val, "|")
+				}
+			}
+			for i, val := range dvals {
+				valLab, _ := val.Label()
+				defLab, _ := def.Label()
+				if valLab == defLab {
+					idx = i
+					return evals[idx], nil
+				}
+			}
+			// should never reach here tho
+			return "", valError(v, "something went wrong, not able to find memberName corresponding to the default")
+		}
+	}
+	return "", def.Err()
+}
+
 func genOrEnum(v cue.Value) ([]KV, error) {
 	_, dvals := v.Expr()
+	a := v.Attribute(attrname)
+
+	var attrMemberNameExist bool
+	var evals []string
+	if a.Err() == nil {
+		val, found, err := a.Lookup(0, attrEnumMembers)
+		if err == nil && found {
+			attrMemberNameExist = true
+			evals = strings.Split(val, "|")
+			if len(evals) != len(dvals) {
+				return nil, valError(v, "typescript enums and %s attributes size doesn't match", attrEnumMembers)
+			}
+		}
+	}
+
+	// We only allowed String Enum to be generated without memberName attribute
+	if v.IncompleteKind() != cue.StringKind && !attrMemberNameExist {
+		return nil, valError(v, "typescript numeric enums may only be generated from memberNames attribute")
+	}
 
 	var pairs []KV
-	for _, dv := range dvals {
-		text, _ := dv.String()
+	for idx, dv := range dvals {
+		var text string
+		if attrMemberNameExist {
+			text = evals[idx]
+		} else {
+			text, _ = dv.String()
+		}
+
 		if !dv.IsConcrete() {
 			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings")
 		}
@@ -268,69 +319,6 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 		pairs = append(pairs, KV{K: strings.Title(text), V: tsprintConcrete(dv)})
 	}
 	return pairs, nil
-}
-
-func genStructEnum(v cue.Value) ([]KV, error) {
-	var pairs []KV
-	fields, err := v.Fields()
-	if err != nil {
-		return nil, err
-	}
-
-	for fields.Next() {
-		k := fields.Label()
-		v := fields.Value()
-		if v.IncompleteKind() != cue.StringKind {
-			return nil, valError(v, "Only string fields are permitted in struct enums")
-		}
-
-		pairs = append(pairs, KV{K: k, V: tsprintConcrete(v)})
-	}
-
-	return pairs, nil
-}
-
-// structEnumDefault finds the default field of a struct enum.
-// That is the single field that holds the @cuetsy(enumDefault) flag.
-func structEnumDefault(v cue.Value) (string, error) {
-	fields, err := v.Fields()
-	if err != nil {
-		return "", err
-	}
-
-	var defaultValue *cue.Value
-	for fields.Next() {
-		a := fields.Value().Attribute(attrname)
-		if a.Err() != nil {
-			// no @cuetsy, this is not our default
-			continue
-		}
-
-		ok, err := a.Flag(0, attrEnumDefault)
-		if err != nil {
-			return "", err
-		}
-		if !ok {
-			// not our default
-			continue
-		}
-		if defaultValue != nil {
-			// we already have a default, it must not be ambigous
-			a, _ := defaultValue.Label()
-			b, _ := fields.Value().Label()
-			return "", valError(v, "Only one enum field may be marked as default, both '%s' and '%s' are", a, b)
-		}
-		v := fields.Value()
-		defaultValue = &v
-	}
-
-	// found no default value
-	if defaultValue == nil {
-		return "", nil
-	}
-
-	l, _ := defaultValue.Label()
-	return l, nil
 }
 
 func (g *generator) genInterface(name string, v cue.Value) {
