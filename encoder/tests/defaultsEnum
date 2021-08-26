@@ -6,6 +6,7 @@ Verifies default value generation for enums
 package cuetsy
 
 OrEnum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
+OrEnumNumeric: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
 
 -- ts  --
 export enum OrEnum {
@@ -14,3 +15,9 @@ export enum OrEnum {
   Foo = 'foo',
 }
 export const orEnumDefault: OrEnum = OrEnum.Baz
+export enum OrEnumNumeric {
+  Bar = 2,
+  Foo = 1,
+  Zip = 3,
+}
+export const orEnumNumericDefault: OrEnumNumeric = OrEnumNumeric.Foo

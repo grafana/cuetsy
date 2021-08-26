@@ -254,7 +254,26 @@ func getDefaultValue(v cue.Value) (string, error) {
 			return strings.Title(strings.Trim(dStr, "'")), nil
 		} else {
 			// For Int, Float, Numeric we need to find the default value and its corresponding memberName value
-			return "", nil
+			var idx int
+			_, dvals := v.Expr()
+			a := v.Attribute(attrname)
+			var evals []string
+			if a.Err() == nil {
+				val, found, err := a.Lookup(0, attrEnumMembers)
+				if err == nil && found {
+					evals = strings.Split(val, "|")
+				}
+			}
+			for i, val := range dvals {
+				valLab, _ := val.Label()
+				defLab, _ := def.Label()
+				if valLab == defLab {
+					idx = i
+					return evals[idx], nil
+				}
+			}
+			// should never reach here tho
+			return "", valError(v, "something went wrong, not able to find memberName corresponding to the default")
 		}
 	}
 	return "", def.Err()
