@@ -1,0 +1,5 @@
+-- cue --
+AType: "foo" | *"bar" | *"baz" @cuetsy(kind="type")
+
+-- err --
+AType has multiple defaults which is not allowed

@@ -1,0 +1,8 @@
+-- cue --
+Foo: {
+  Bar: string | *"ohai"
+  Baz: int | *4 | *7
+} @cuetsy(kind="interface")
+
+-- err --
+Baz has multiple defaults which is not allowed

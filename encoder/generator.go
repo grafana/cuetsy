@@ -181,13 +181,16 @@ func (g *generator) genType(name string, v cue.Value) {
 
 	tvars["tokens"] = tokens
 
-	d, ok := v.Default()
+	d, ok, err := validateAndGetDefault(v)
+	if err != nil {
+		g.addErr(err)
+	}
+
 	if ok {
 		dStr, err := tsprintField(d)
 		g.addErr(err)
 		tvars["default"] = dStr
 	}
-
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
 	g.exec(typeCode, tvars)
@@ -220,7 +223,7 @@ func (g *generator) genEnum(name string, v cue.Value) {
 			g.addErr(err)
 		}
 		pairs = orPairs
-		defaultValue, err = getDefaultValue(v)
+		defaultValue, err = getDefaultEnumValue(v)
 		if err != nil {
 			g.addErr(err)
 		}
@@ -243,8 +246,25 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	g.exec(enumCode, tvars)
 }
 
-func getDefaultValue(v cue.Value) (string, error) {
+func validateAndGetDefault(v cue.Value) (cue.Value, bool, error) {
 	def, ok := v.Default()
+	if ok {
+		label, _ := def.Label()
+		op, dvals := def.Expr()
+		if len(dvals) > 1 && op == cue.OrOp {
+			return def, true, valError(v, "%s has multiple defaults which is not allowed", label)
+		}
+		return def, true, nil
+	}
+	return def, false, nil
+}
+
+func getDefaultEnumValue(v cue.Value) (string, error) {
+	def, ok, err := validateAndGetDefault(v)
+	if err != nil {
+		return "", err
+	}
+
 	if ok {
 		if v.IncompleteKind() == cue.StringKind {
 			dStr, err := tsprintField(def)
@@ -475,7 +495,11 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 		kv := KV{K: k, V: vstr}
 
-		d, ok := fields.Value().Default()
+		// When default exist but have sevarals, we need to fail
+		d, ok, err := validateAndGetDefault(fields.Value())
+		if err != nil {
+			g.addErr(err)
+		}
 		// [...number] results in [], which is not desired
 		// TODO: There must be a better way to handle this
 		if ok && d.IncompleteKind() != cue.ListKind {
