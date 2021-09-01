@@ -1,0 +1,29 @@
+
+This would be the typical cases we should fail, since Bar is refereced to a type with default
+and we are trying to assign another default
+
+Seems CUE is picking the default before eval it, it seems we can get the reference first and
+check whether default exist there, if yes if the default also exist for the current cue object error out
+
+Or should we just forbidden the disjunction between Enum and other types??
+-- cue --
+package cuetsy
+
+AOrEnum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
+Foo: {
+  Bar: AOrEnum | *"ohai"
+} @cuetsy(kind="interface")
+
+-- err --
+export enum AOrEnum {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+export const aOrEnumDefault: AOrEnum = AOrEnum.Baz
+export interface Foo {
+  Bar: AOrEnum | 'ohai';
+}
+export const fooDefault: Foo = {
+  Bar: 'ohai',
+}

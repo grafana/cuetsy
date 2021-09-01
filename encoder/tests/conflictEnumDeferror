@@ -1,5 +1,0 @@
--- cue --
-E3: "a" | *"b" | *"c" @cuetsy(kind="enum")
-
--- err --
-E3 has multiple defaults which is not allowed

@@ -1,0 +1,8 @@
+-- cue --
+AType: "foo" | *"bar" | "baz" @cuetsy(kind="type")
+BType: "foo" | "bar" | *"baz" @cuetsy(kind="type")
+CType: AType | BType @cuetsy(kind="type")
+
+
+-- err --
+CType has multiple defaults which is not allowed
