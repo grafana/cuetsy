@@ -1,8 +1,15 @@
 -- cue --
+AType: *4 | int @cuetsy(kind="type")
 Foo: {
-  Bar: string | *"ohai"
-  Baz: int | *4 | *7
+  Baz: AType | *7
 } @cuetsy(kind="interface")
 
 -- err --
-Baz has multiple defaults which is not allowed
+export type AType = number;
+export const aTypeDefault: AType = 4
+export interface Foo {
+  Baz: number;
+}
+export const fooDefault: Foo = {
+  Baz: 7,
+}

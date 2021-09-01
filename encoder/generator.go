@@ -247,16 +247,41 @@ func (g *generator) genEnum(name string, v cue.Value) {
 }
 
 func validateAndGetDefault(v cue.Value) (cue.Value, bool, error) {
+	defs := []cue.Value{}
+	ops, vvals := v.Expr()
+	fmt.Printf("........ the v expr() is: %v and ops is : %v\n", vvals, ops)
+	if ops == cue.OrOp {
+		for _, vval := range vvals {
+			if inst, path := vval.Reference(); len(path) > 0 {
+				fmt.Println(">>>>>>>>>>>>>>>>> I am here >>>>>>>>>>>>>>")
+				if def, ok := inst.Lookup(path...).Default(); ok {
+
+					defs = append(defs, def)
+				}
+			}
+		}
+	}
+
 	def, ok := v.Default()
 	if ok {
-		label, _ := def.Label()
+		defs = append(defs, def)
+		label, _ := v.Label()
 		op, dvals := def.Expr()
 		if len(dvals) > 1 && op == cue.OrOp {
 			return def, true, valError(v, "%s has multiple defaults which is not allowed", label)
 		}
-		return def, true, nil
+	}
+	if len(defs) >= 1 {
+		for _, def := range defs[1:] {
+			if !defs[0].Equals(def) {
+				label, _ := v.Label()
+				return def, true, valError(v, "%s has multiple defaults which is not allowed", label)
+			}
+		}
+		return defs[0], true, nil
 	}
 	return def, false, nil
+
 }
 
 func getDefaultEnumValue(v cue.Value) (string, error) {
