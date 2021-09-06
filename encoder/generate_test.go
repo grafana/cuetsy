@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/pkg/strings"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sdboyer/cuetsy/encoder"
@@ -40,8 +41,8 @@ func TestGenerate(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			var r cue.Runtime
-			i, err := r.Compile(c.Name+".cue", c.CUE)
+			ctx := cuecontext.New()
+			i := ctx.CompileString(c.CUE, cue.Filename(c.Name+".cue"))
 			if err != nil {
 				t.Fatal(err)
 			}

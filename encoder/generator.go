@@ -456,7 +456,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	// place in the body of the generated typescript interface. (Or nil, if
 	// there's no body to generate.)
 	for fields != nil && fields.Next() {
-		if fields.IsHidden() {
+		if fields.Selector().PkgPath() != "" {
 			// TODO figure out how to attach cue token positions to errors
 			g.addErr(valError(fields.Value(), "cannot generate hidden fields; typescript has no corresponding concept"))
 			return
@@ -482,7 +482,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			dStr, err := tsprintField(d)
 			g.addErr(err)
 			kv.Default = dStr
-			if _, r := d.Reference(); len(r) > 0 {
+			if isReference(d) {
 				kv.Default = strcase.ToLowerCamel(kv.Default + "Default")
 			}
 			tvars["defaults"] = true
@@ -505,9 +505,9 @@ func (g *generator) genInterface(name string, v cue.Value) {
 // literal.
 func tsprintField(v cue.Value) (string, error) {
 	// References appear to be largely orthogonal to the Kind system. Handle them first.
-	_, path := v.Reference()
-	if len(path) > 0 {
-		return strings.Join(path, "."), nil
+	if isReference(v) {
+		_, path := v.ReferencePath()
+		return path.String(), nil
 	}
 
 	op, dvals := v.Expr()
@@ -576,7 +576,9 @@ func tsprintField(v cue.Value) (string, error) {
 		// This list is open - its final element is ...<value> - and we can only
 		// meaningfully convert open lists to typescript if there are zero other
 		// elements.
-		e, has := v.Elem()
+		// e, has := v.Elem()
+		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
+		has := e.Exists()
 		if !has {
 			panic("unreachable - non-concrete list should entail Elem() returns something")
 		}
@@ -714,6 +716,6 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 }
 
 func isReference(v cue.Value) bool {
-	_, path := v.Reference()
-	return len(path) > 0
+	_, path := v.ReferencePath()
+	return len(path.Selectors()) > 0
 }
