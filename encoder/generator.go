@@ -455,6 +455,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	// We now have an iterator that represents the set of fields we want to
 	// place in the body of the generated typescript interface. (Or nil, if
 	// there's no body to generate.)
+
 	for fields != nil && fields.Next() {
 		if fields.Selector().PkgPath() != "" {
 			// TODO figure out how to attach cue token positions to errors
@@ -576,7 +577,6 @@ func tsprintField(v cue.Value) (string, error) {
 		// This list is open - its final element is ...<value> - and we can only
 		// meaningfully convert open lists to typescript if there are zero other
 		// elements.
-		// e, has := v.Elem()
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		has := e.Exists()
 		if !has {
