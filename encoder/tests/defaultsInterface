@@ -18,7 +18,7 @@ NestedFoo: {
   Bar: string | *"ohai"
   Foo: {
     Bar: string | *"ohai"
-    Baz: int
+    Baz: AType
   }
 } @cuetsy(kind="interface")
 
@@ -39,7 +39,7 @@ export interface NestedFoo {
   Bar: string;
   Foo: {
     Bar: string;
-    Baz: number;
+    Baz: aTypeDefault;
   };
 }
 export const nestedFooDefault: NestedFoo = {

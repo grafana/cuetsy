@@ -513,19 +513,20 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 			return false, result, err
 		}
 		result = dStr
-		if _, r := d.Reference(); len(r) > 0 {
+		if isReference(d) {
 			result = strcase.ToLowerCamel(result + "Default")
 		}
 		return true, result, nil
-	} else if !ok && d.IncompleteKind() == cue.StructKind {
-		generation, level, err := getNestedStructLevel(d, 0)
-		if err != nil {
-			return false, result, err
-		}
-		if generation {
-			fmt.Println("..............................I am here, the nested structure level is.........", level)
-		}
 	}
+	// else if !ok && d.IncompleteKind() == cue.StructKind {
+	// 	generation, level, err := getNestedStructLevel(d, 0)
+	// 	if err != nil {
+	// 		return false, result, err
+	// 	}
+	// 	if generation {
+	// 		fmt.Println("..............................I am here, the nested structure level is.........", level)
+	// 	}
+	// }
 	return false, result, nil
 }
 
@@ -587,6 +588,9 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 					ele, err := tsprintField(iter.Value(), nestedLevel+1)
 					if err != nil {
 						return "", valError(v, err.Error())
+					}
+					if isReference(iter.Value()) {
+						ele = strcase.ToLowerCamel(ele + "Default")
 					}
 					pairs = append(pairs, KV{K: iter.Label(), V: ele})
 				}
