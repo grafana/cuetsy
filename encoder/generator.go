@@ -102,6 +102,15 @@ func (g *generator) exec(t *template.Template, data interface{}) {
 	g.addErr(t.Execute(&g.w, data))
 }
 
+func execGetString(t *template.Template, data interface{}) (string, error) {
+	var tpl bytes.Buffer
+	if err := t.Execute(&tpl, data); err != nil {
+		return "", err
+	}
+	result := tpl.String()
+	return result, nil
+}
+
 func (g *generator) decl(name string, v cue.Value) {
 	// dumpJSON(name, v, false)
 	if !gast.IsExported(name) {
@@ -476,19 +485,14 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 		kv := KV{K: k, V: vstr}
 
-		d, ok := fields.Value().Default()
-		// [...number] results in [], which is not desired
-		// TODO: There must be a better way to handle this
-		if ok && d.IncompleteKind() != cue.ListKind {
-			dStr, err := tsprintField(d)
+		exists, defaultV, err := tsPrintDefault(fields.Value())
+		if err != nil {
 			g.addErr(err)
-			kv.Default = dStr
-			if isReference(d) {
-				kv.Default = strcase.ToLowerCamel(kv.Default + "Default")
-			}
-			tvars["defaults"] = true
 		}
-
+		if exists {
+			tvars["defaults"] = true
+			kv.Default = defaultV
+		}
 		pairs = append(pairs, kv)
 	}
 
@@ -498,17 +502,64 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	g.exec(interfaceCode, tvars)
 }
 
+func tsPrintDefault(v cue.Value) (bool, string, error) {
+	var result string
+	d, ok := v.Default()
+	// [...number] results in [], which is not desired
+	// TODO: There must be a better way to handle this
+	if ok && d.IncompleteKind() != cue.ListKind {
+		dStr, err := tsprintField(d)
+		if err != nil {
+			return false, result, err
+		}
+		result = dStr
+		if _, r := d.Reference(); len(r) > 0 {
+			result = strcase.ToLowerCamel(result + "Default")
+		}
+		return true, result, nil
+	} else if !ok && d.IncompleteKind() == cue.StructKind {
+		generation, level, err := getNestedStructLevel(d, 0)
+		if err != nil {
+			return false, result, err
+		}
+		if generation {
+			fmt.Println("..............................I am here, the nested structure level is.........", level)
+		}
+	}
+	return false, result, nil
+}
+
+func getNestedStructLevel(v cue.Value, nestedLevel int) (bool, int, error) {
+	startGenerate := false
+	_, err := v.Fields()
+	if err != nil {
+		return startGenerate, nestedLevel, err
+	}
+	return startGenerate, 0, nil
+	// for iter.Next() {
+	// 	iter.Value().IncompleteKind() != cue.ListKind
+	// 	if _, ok := iter.Value().Default(); ok {
+
+	// 	}
+	// }
+}
+
 // Render a string containing a Typescript semantic equivalent to the provided
 // Value, if possible.
 //
 // The provided Value must be a simple expression (loosely defined, until
 // something more precise is understood); e.g., this will NOT render a struct
 // literal.
-func tsprintField(v cue.Value) (string, error) {
+func tsprintField(v cue.Value, optionals ...int) (string, error) {
 	// References appear to be largely orthogonal to the Kind system. Handle them first.
 	if isReference(v) {
 		_, path := v.ReferencePath()
 		return path.String(), nil
+	}
+
+	nestedLevel := 1
+	if len(optionals) > 0 {
+		nestedLevel = optionals[0]
 	}
 
 	op, dvals := v.Expr()
@@ -526,7 +577,25 @@ func tsprintField(v cue.Value) (string, error) {
 			// which should be available via String() of the second op from Expr()
 			_ = s
 			if op != cue.SelectorOp {
-				panic("fixme")
+				iter, err := v.Fields()
+				if err != nil {
+					return "", valError(v, "something went wrong when generate nested structs")
+				}
+
+				var pairs []KV
+				for iter.Next() {
+					ele, err := tsprintField(iter.Value(), nestedLevel+1)
+					if err != nil {
+						return "", valError(v, err.Error())
+					}
+					pairs = append(pairs, KV{K: iter.Label(), V: ele})
+				}
+				result, err := execGetString(nestedStructCode, map[string]interface{}{"pairs": pairs, "level": make([]int, nestedLevel)})
+
+				if err != nil {
+					return "", valError(v, err.Error())
+				}
+				return result, nil
 			}
 			return dvals[1].String()
 		default:

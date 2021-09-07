@@ -71,6 +71,17 @@ const {{ToLowerCamel .name}}Default: {{.name}} = {
 }{{end}}
 `)
 
+var nestedStructCode = tmpl("nestedstruct", `
+{{- if .maturity -}}
+/**
+ * {{.maturity}}
+ */
+{{end -}}
+{
+{{- range .pairs}}
+{{ range $.level}}  {{end}}  {{.K}}: {{.V}};{{end}}
+{{ range $.level}}  {{end}}}`)
+
 func tmpl(name, data string) *template.Template {
 	t := template.New(name)
 	t.Funcs(template.FuncMap{

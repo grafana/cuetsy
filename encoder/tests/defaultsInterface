@@ -14,6 +14,14 @@ Foo: {
   C: AType
 } @cuetsy(kind="interface")
 
+NestedFoo: {
+  Bar: string | *"ohai"
+  Foo: {
+    Bar: string | *"ohai"
+    Baz: int
+  }
+} @cuetsy(kind="interface")
+
 -- ts  --
 export type AType = 'foo' | 'bar' | 'baz';
 export const aTypeDefault: AType = 'baz'
@@ -26,4 +34,14 @@ export const fooDefault: Foo = {
   Bar: 'ohai',
   Baz: 4,
   C: aTypeDefault,
+}
+export interface NestedFoo {
+  Bar: string;
+  Foo: {
+    Bar: string;
+    Baz: number;
+  };
+}
+export const nestedFooDefault: NestedFoo = {
+  Bar: 'ohai',
 }

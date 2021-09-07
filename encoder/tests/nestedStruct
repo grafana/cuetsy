@@ -1,0 +1,62 @@
+Verifies expected behavior with basic nested structs
+
+-- cue --
+package cuetsy
+
+OneLevel: {
+  Foo: string
+  Bar: number
+} @cuetsy(kind="interface")
+
+TwoLevel: {
+    Outer: string
+    NestedDecl: {
+        InnerOne: number
+        InnerTwo: number
+    }
+} @cuetsy(kind="interface")
+
+ThreeLevel: {
+    Outer: string
+    NestedDecl1: {
+      InnerOne: number
+      InnerTwo: number
+      NestedDecl2: {
+        InnerOne: number
+        InnerTwo: number
+      }
+    }
+} @cuetsy(kind="interface")
+
+Composed: {
+    Outer: string
+    NestedRef: OneLevel
+} @cuetsy(kind="interface")
+
+-- ts --
+export interface OneLevel {
+  Bar: number;
+  Foo: string;
+}
+export interface TwoLevel {
+  NestedDecl: {
+    InnerOne: number;
+    InnerTwo: number;
+  };
+  Outer: string;
+}
+export interface ThreeLevel {
+  NestedDecl1: {
+    InnerOne: number;
+    InnerTwo: number;
+    NestedDecl2: {
+      InnerOne: number;
+      InnerTwo: number;
+    };
+  };
+  Outer: string;
+}
+export interface Composed {
+  NestedRef: OneLevel;
+  Outer: string;
+}
