@@ -1,9 +1,10 @@
 package encoder
 
 import (
-	"github.com/iancoleman/strcase"
 	"strings"
 	"text/template"
+
+	"github.com/iancoleman/strcase"
 )
 
 // Generate a typescript type declaration. Inputs:
