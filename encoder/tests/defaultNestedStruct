@@ -1,0 +1,131 @@
+Verifies expected behavior with basic nested structs
+
+-- cue --
+package cuetsy
+
+OneLevel: {
+  Foo: string | *"foo"
+  Bar: number
+} @cuetsy(kind="interface")
+
+TwoLevel: {
+  Outer: string
+  NestedDecl: {
+      InnerOne: number
+      InnerTwo: number
+  }
+} @cuetsy(kind="interface")
+
+TwoLevelDef: {
+    Outer: string
+    NestedDecl: {
+        InnerOne: number | *4
+        InnerTwo: number
+    }
+} @cuetsy(kind="interface")
+
+ThreeLevel: {
+    Outer: string
+    NestedDecl1: {
+      InnerOne: number
+      InnerTwo: number
+      NestedDecl2: {
+        InnerOne: number
+        InnerTwo: number
+      }
+    }
+} @cuetsy(kind="interface")
+
+ThreeLevelDef1: {
+  Outer: string
+  NestedDecl1: {
+    InnerOne: number | *6
+    InnerTwo: number
+    NestedDecl2: {
+      InnerOne: number
+      InnerTwo: number
+    }
+  }
+} @cuetsy(kind="interface")
+
+ThreeLevelDef2: {
+  Outer: string
+  NestedDecl1: {
+    InnerOne: number
+    InnerTwo: number
+    NestedDecl2: {
+      InnerOne: number | *4
+      InnerTwo: number
+    }
+  }
+} @cuetsy(kind="interface")
+
+Composed: {
+    Outer: string
+    NestedRef: TwoLevelDef
+} @cuetsy(kind="interface")
+
+-- ts --
+export interface OneLevel {
+  Bar: number;
+  Foo: string;
+}
+export const oneLevelDefault: OneLevel = {
+  Foo: 'foo',
+}
+export interface TwoLevel {
+  NestedDecl: {
+    InnerOne: number;
+    InnerTwo: number;
+  };
+  Outer: string;
+}
+export interface TwoLevelDef {
+  NestedDecl: {
+    InnerOne: number;
+    InnerTwo: number;
+  };
+  Outer: string;
+}
+export const TwoLevelDefDefault: TwoLevelDef = {
+  NestedDecl: {
+    InnerOne: 4,
+  },
+}
+export interface ThreeLevel {
+  NestedDecl1: {
+    InnerOne: number;
+    InnerTwo: number;
+    NestedDecl2: {
+      InnerOne: number;
+      InnerTwo: number;
+    };
+  };
+  Outer: string;
+}
+export interface ThreeLevelDef1 {
+  NestedDecl1: {
+    InnerOne: number;
+    InnerTwo: number;
+    NestedDecl2: {
+      InnerOne: number;
+      InnerTwo: number;
+    };
+  };
+  Outer: string;
+}
+export interface ThreeLevelDef2 {
+  NestedDecl1: {
+    InnerOne: number;
+    InnerTwo: number;
+    NestedDecl2: {
+      InnerOne: number;
+      InnerTwo: number;
+    };
+  };
+  Outer: string;
+}
+export interface Composed {
+  NestedRef: TwoLevelDef;
+  Outer: string;
+}

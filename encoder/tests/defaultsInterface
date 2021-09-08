@@ -39,7 +39,7 @@ export interface NestedFoo {
   Bar: string;
   Foo: {
     Bar: string;
-    Baz: aTypeDefault;
+    Baz: AType;
   };
 }
 export const nestedFooDefault: NestedFoo = {

@@ -502,8 +502,30 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	g.exec(interfaceCode, tvars)
 }
 
+func GetStructDefaultGenerationLevel(v cue.Value) (int, error) {
+	if v.Kind() == cue.StructKind {
+		_, err := v.Fields()
+		if err != nil {
+			return 0, err
+		}
+		// for iter.Next() {
+		// 	GetStructDefaultGenerationLevel(iter.Value())
+		// }
+	}
+	return 1, nil
+}
+
 func tsPrintDefault(v cue.Value) (bool, string, error) {
+	// We can't use the approach to calculate the generation level then start generation,
+	// since a struct could nested several sub struct, and each of them could have their own depth
 	var result string
+	// level, err := GetStructDefaultGenerationLevel(v)
+	// if err != nil {
+	// 	return false, result, err
+	// }
+
+	// fmt.Println("the level of generation is: ", level)
+	// We need to calculate the structure level probably here first?
 	d, ok := v.Default()
 	// [...number] results in [], which is not desired
 	// TODO: There must be a better way to handle this
@@ -518,20 +540,22 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 		}
 		return true, result, nil
 	}
-	// else if !ok && d.IncompleteKind() == cue.StructKind {
-	// 	generation, level, err := getNestedStructLevel(d, 0)
+	// else if !ok && d.Kind() == cue.StructKind {
+	// 	generate, dStr, err := tsPrintDefault(d)
 	// 	if err != nil {
 	// 		return false, result, err
 	// 	}
-	// 	if generation {
-	// 		fmt.Println("..............................I am here, the nested structure level is.........", level)
-	// 	}
+	// 	return generate, dStr, err
+	// 	// It is a structure, we need to generate its default when at least one
+	// 	// of its ele has default value
+
 	// }
 	return false, result, nil
 }
 
-func getNestedStructLevel(v cue.Value, nestedLevel int) (bool, int, error) {
+func getNestedStructLevel(v cue.Value) (bool, int, error) {
 	startGenerate := false
+	nestedLevel := 1
 	_, err := v.Fields()
 	if err != nil {
 		return startGenerate, nestedLevel, err
@@ -566,6 +590,7 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 	op, dvals := v.Expr()
 	// Eliminate concretes first, to make handling the others easier.
 	k := v.Kind()
+	fmt.Printf("...........my kind is: %v......... \n", k)
 	switch k {
 	case cue.StructKind:
 		switch s := v.Source().(type) {
@@ -578,22 +603,25 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 			// which should be available via String() of the second op from Expr()
 			_ = s
 			if op != cue.SelectorOp {
+				fmt.Println("............. I am a concret structure ............")
+				// Here we generate the nested structure
 				iter, err := v.Fields()
 				if err != nil {
 					return "", valError(v, "something went wrong when generate nested structs")
 				}
 
+				// Generate each elements of struct independently, but need to pay attention,
+				// since the elem could be a fucking reference for the concret struct :D whose name is xxxDefault...
 				var pairs []KV
 				for iter.Next() {
 					ele, err := tsprintField(iter.Value(), nestedLevel+1)
 					if err != nil {
 						return "", valError(v, err.Error())
 					}
-					if isReference(iter.Value()) {
-						ele = strcase.ToLowerCamel(ele + "Default")
-					}
 					pairs = append(pairs, KV{K: iter.Label(), V: ele})
 				}
+
+				// Generate the nested struct as a value of key pair
 				result, err := execGetString(nestedStructCode, map[string]interface{}{"pairs": pairs, "level": make([]int, nestedLevel)})
 
 				if err != nil {
@@ -643,6 +671,7 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 	}
 
 	ik := v.IncompleteKind()
+	fmt.Printf("...........my incomplete kind is: %v......... \n", ik)
 	switch ik {
 	case cue.BottomKind:
 		return "", valError(v, "bottom, unsatisfiable")
