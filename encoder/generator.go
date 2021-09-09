@@ -479,7 +479,34 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		d, ok := fields.Value().Default()
 		// [...number] results in [], which is not desired
 		// TODO: There must be a better way to handle this
-		if ok && d.IncompleteKind() != cue.ListKind {
+
+		// Correct the list default value when it is not for real
+		if ok && d.Kind() == cue.ListKind {
+			len, err := d.Len().Int64()
+			if err != nil {
+				g.addErr(err)
+			}
+			var defaultExist bool
+			if len <= 0 {
+				op, vals := fields.Value().Expr()
+				if op == cue.OrOp {
+					for _, val := range vals {
+						vallen, _ := d.Len().Int64()
+						if val.Kind() == cue.ListKind && vallen <= 0 {
+							defaultExist = true
+							break
+						}
+					}
+					if !defaultExist {
+						ok = false
+					}
+				} else {
+					ok = false
+				}
+			}
+		}
+
+		if ok {
 			dStr, err := tsprintField(d)
 			g.addErr(err)
 			kv.Default = dStr
@@ -579,21 +606,25 @@ func tsprintField(v cue.Value) (string, error) {
 		// elements.
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		has := e.Exists()
-		if !has {
-			panic("unreachable - non-concrete list should entail Elem() returns something")
+		if has {
+			elemstr, err := tsprintField(e)
+			if err != nil {
+				return "", err
+			}
+			return elemstr + "[]", nil // TODO
+		} else {
+			// When it is a concrete list.
+			iter, _ := v.List()
+			if iter.Next() {
+				elemstr := tsprintType(iter.Value().Kind())
+				if elemstr == "" {
+					label, _ := v.Label()
+					return "", valError(v, "can't convert list element of %v to typescript", label)
+				}
+				return elemstr + "[]", nil // TODO
+			}
+			return "x", nil
 		}
-		elemstr, err := tsprintField(e)
-		if err != nil {
-			return "", err
-		}
-
-		// Verify there are no other list elements.
-		iter, _ := v.List()
-		// TODO There's gotta be a better way of checking this
-		for iter.Next() {
-			return "", valError(v, "open lists are only supported with zero values; try as [...%s]", elemstr)
-		}
-		return elemstr + "[]", nil // TODO
 	case cue.NumberKind, cue.StringKind:
 		// It appears there are only three cases in which we can have an
 		// incomplete NumberKind or StringKind:
