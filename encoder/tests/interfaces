@@ -60,9 +60,6 @@ export interface I2 {
   I2_OptionalInterfaceReference?: I1;
   I2_TypedList: number[];
 }
-export const i2Default: I2 = {
-  I2_TypedList: [],
-}
 export interface I3 {
   I3_EnumReference: E1;
   I3_OptionalNumber?: number;

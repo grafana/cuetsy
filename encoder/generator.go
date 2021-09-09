@@ -479,6 +479,33 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		d, ok := fields.Value().Default()
 		// [...number] results in [], which is not desired
 		// TODO: There must be a better way to handle this
+
+		// Correct the list default value when it is not for real
+		if ok && d.Kind() == cue.ListKind {
+			len, err := d.Len().Int64()
+			if err != nil {
+				g.addErr(err)
+			}
+			var defaultExist bool
+			if len <= 0 {
+				op, vals := fields.Value().Expr()
+				if op == cue.OrOp {
+					for _, val := range vals {
+						vallen, _ := d.Len().Int64()
+						if val.Kind() == cue.ListKind && vallen <= 0 {
+							defaultExist = true
+							break
+						}
+					}
+					if !defaultExist {
+						ok = false
+					}
+				} else {
+					ok = false
+				}
+			}
+		}
+
 		if ok {
 			dStr, err := tsprintField(d)
 			g.addErr(err)
