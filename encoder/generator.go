@@ -13,6 +13,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
+	"github.com/iancoleman/strcase"
 )
 
 const (
@@ -227,7 +228,7 @@ func (g *generator) genEnum(name string, v cue.Value) {
 			g.addErr(err)
 		}
 		pairs = orPairs
-		defaultValue, err = getDefaultValue(v)
+		defaultValue, err = getEnumDefaultValue(v)
 		if err != nil {
 			g.addErr(err)
 		}
@@ -250,7 +251,7 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	g.exec(enumCode, tvars)
 }
 
-func getDefaultValue(v cue.Value) (string, error) {
+func getEnumDefaultValue(v cue.Value) (string, error) {
 	def, ok := v.Default()
 	if ok {
 		if v.IncompleteKind() == cue.StringKind {
@@ -483,19 +484,52 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 		kv := KV{K: k, V: vstr}
 
-		d, ok := fields.Value().Default()
-		// [...number] results in [], which is not desired
-		// TODO: There must be a better way to handle this
+		d, ok, err := getDefault(fields.Value())
+		g.addErr(err)
 
-		// Correct the list default value when it is not for real
-		if ok && d.Kind() == cue.ListKind {
+		if ok {
+			dStr, err := tsprintField(d)
+			g.addErr(err)
+			kv.Default = dStr
+			if isReference(d) {
+				kv.Default = strcase.ToLowerCamel(kv.Default + "Default")
+			}
+			tvars["defaults"] = true
+			kv.Default = dStr
+		}
+
+		pairs = append(pairs, kv)
+	}
+
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
+	tvars["pairs"] = pairs
+
+	g.exec(interfaceCode, tvars)
+}
+
+func getDefault(v cue.Value) (cue.Value, bool, error) {
+	d, ok := v.Default()
+	/*
+		 Here the Default() function of CUE has some unexpected behavior, we need to correct them.
+		 1. [...number] always have a default value which results in [], we need to consider it doesn't have default if it is the case
+		 2. Nested struct for example:
+		 		StructA : {
+		   		elemA: string | *"foo"
+					elemB: number
+				}
+		 It should be considered having default value {elemA: "foo"} instead of no default
+	*/
+
+	// When list has default and it is an empty list, check that it is intented to be *[]
+	if ok {
+		if d.Kind() == cue.ListKind {
 			len, err := d.Len().Int64()
 			if err != nil {
-				g.addErr(err)
+				return d, ok, err
 			}
 			var defaultExist bool
 			if len <= 0 {
-				op, vals := fields.Value().Expr()
+				op, vals := v.Expr()
 				if op == cue.OrOp {
 					for _, val := range vals {
 						vallen, _ := d.Len().Int64()
@@ -512,51 +546,34 @@ func (g *generator) genInterface(name string, v cue.Value) {
 				}
 			}
 		}
-
-		if ok {
-			dStr, err := tsprintField(d)
+	} else {
+		if d.Kind() == cue.StructKind {
+			iter, err := v.Fields()
 			if err != nil {
-				g.addErr(err)
+				return d, ok, nil
 			}
-			tvars["defaults"] = true
-			kv.Default = dStr
+			defaultExist := false
+			result := d.Context().CompileString("")
+
+			for iter.Next() {
+				v, exists, err := getDefault(iter.Value())
+				if err != nil {
+					return d, ok, err
+				}
+				if exists {
+					defaultExist = true
+					lable, _ := iter.Value().Label()
+					result = result.FillPath(cue.ParsePath(lable), v)
+				}
+			}
+			if defaultExist {
+				return result, true, nil
+			} else {
+				return result, false, nil
+			}
 		}
-		pairs = append(pairs, kv)
 	}
-
-	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
-	tvars["pairs"] = pairs
-
-	g.exec(interfaceCode, tvars)
-}
-
-func GetStructDefaultGenerationLevel(v cue.Value) (int, error) {
-	if v.Kind() == cue.StructKind {
-		_, err := v.Fields()
-		if err != nil {
-			return 0, err
-		}
-		// for iter.Next() {
-		// 	GetStructDefaultGenerationLevel(iter.Value())
-		// }
-	}
-	return 1, nil
-}
-
-func getNestedStructLevel(v cue.Value) (bool, int, error) {
-	startGenerate := false
-	nestedLevel := 1
-	_, err := v.Fields()
-	if err != nil {
-		return startGenerate, nestedLevel, err
-	}
-	return startGenerate, 0, nil
-	// for iter.Next() {
-	// 	iter.Value().IncompleteKind() != cue.ListKind
-	// 	if _, ok := iter.Value().Default(); ok {
-
-	// 	}
-	// }
+	return d, ok, nil
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided
@@ -580,20 +597,18 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 	op, dvals := v.Expr()
 	// Eliminate concretes first, to make handling the others easier.
 	k := v.Kind()
-	fmt.Printf("...........my kind is: %v......... \n", k)
 	switch k {
 	case cue.StructKind:
 		switch s := v.Source().(type) {
 		case *ast.StructLit:
 			return "", valError(v, "nested structs are not yet supported")
-		case *ast.Field:
+		case *ast.Field, nil:
 			// TODO
 			// return s.Label
 			// Otherwise it's gonna (?) be a field, and we just print its name,
 			// which should be available via String() of the second op from Expr()
 			_ = s
 			if op != cue.SelectorOp {
-				fmt.Println("............. I am a concret structure ............")
 				// Here we generate the nested structure
 				iter, err := v.Fields()
 				if err != nil {
@@ -621,6 +636,8 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 			}
 			return dvals[1].String()
 		default:
+			// when it is a concret struct apparently for default :D
+
 			panic("wtf")
 		}
 	case cue.ListKind:
@@ -661,7 +678,6 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 	}
 
 	ik := v.IncompleteKind()
-	fmt.Printf("...........my incomplete kind is: %v......... \n", ik)
 	switch ik {
 	case cue.BottomKind:
 		return "", valError(v, "bottom, unsatisfiable")

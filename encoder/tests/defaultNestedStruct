@@ -51,10 +51,10 @@ ThreeLevelDef1: {
 ThreeLevelDef2: {
   Outer: string
   NestedDecl1: {
-    InnerOne: number
+    InnerOne: number | *5
     InnerTwo: number
     NestedDecl2: {
-      InnerOne: number | *4
+      InnerOne: number 
       InnerTwo: number
     }
   }
@@ -87,9 +87,9 @@ export interface TwoLevelDef {
   };
   Outer: string;
 }
-export const TwoLevelDefDefault: TwoLevelDef = {
+export const twoLevelDefDefault: TwoLevelDef = {
   NestedDecl: {
-    InnerOne: 4,
+    InnerOne: 4;
   },
 }
 export interface ThreeLevel {
@@ -114,6 +114,11 @@ export interface ThreeLevelDef1 {
   };
   Outer: string;
 }
+export const threeLevelDef1Default: ThreeLevelDef1 = {
+  NestedDecl1: {
+    InnerOne: 6;
+  },
+}
 export interface ThreeLevelDef2 {
   NestedDecl1: {
     InnerOne: number;
@@ -124,6 +129,11 @@ export interface ThreeLevelDef2 {
     };
   };
   Outer: string;
+}
+export const threeLevelDef2Default: ThreeLevelDef2 = {
+  NestedDecl1: {
+    InnerOne: 5;
+  },
 }
 export interface Composed {
   NestedRef: TwoLevelDef;

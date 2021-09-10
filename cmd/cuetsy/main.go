@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 	"github.com/sdboyer/cuetsy/encoder"
@@ -32,12 +32,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx := cuecontext.New()
 	loadedInstances := load.Instances([]string{os.Args[1]}, nil)
-	instances := cue.Build(loadedInstances)
+	values, err := ctx.BuildInstances(loadedInstances)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+	}
 	// Given the above input constraints, there _should_ only ever be a
 	// single element in this slice.
-	for _, inst := range instances {
-		b, err := encoder.Generate(inst.Value(), encoder.Config{})
+	for _, v := range values {
+		b, err := encoder.Generate(v, encoder.Config{})
 		if err != nil {
 			errors.Print(os.Stderr, err, &errors.Config{
 				Cwd: wd,
