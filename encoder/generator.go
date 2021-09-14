@@ -586,12 +586,18 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 	// References appear to be largely orthogonal to the Kind system. Handle them first.
 	if isReference(v) {
 		_, path := v.ReferencePath()
+		fmt.Println("the path is: ..... for reference.........", path.String())
 		return path.String(), nil
 	}
 
 	nestedLevel := 1
 	if len(optionals) > 0 {
 		nestedLevel = optionals[0]
+	}
+
+	isdefault := 0
+	if len(optionals) > 1 {
+		isdefault = optionals[1]
 	}
 
 	op, dvals := v.Expr()
@@ -619,13 +625,27 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 				// since the elem could be a fucking reference for the concret struct :D whose name is xxxDefault...
 				var pairs []KV
 				for iter.Next() {
-					ele, err := tsprintField(iter.Value(), nestedLevel+1)
-					if err != nil {
-						return "", valError(v, err.Error())
+					if isdefault == 0 {
+						ele, err := tsprintField(iter.Value(), nestedLevel+1)
+						if err != nil {
+							return "", valError(v, err.Error())
+						}
+						pairs = append(pairs, KV{K: iter.Label(), V: ele})
+					} else {
+						_, exist, err := getDefault(iter.Value())
+						if err != nil {
+							return "", valError(v, err.Error())
+						}
+						if exist {
+							// When default exists, we need to check whether it is reference here, if yes,
+							ele, err := tsprintField(iter.Value(), nestedLevel+1)
+							if err != nil {
+								return "", valError(v, err.Error())
+							}
+							pairs = append(pairs, KV{K: iter.Label(), V: ele})
+						}
 					}
-					pairs = append(pairs, KV{K: iter.Label(), V: ele})
 				}
-
 				// Generate the nested struct as a value of key pair
 				result, err := execGetString(nestedStructCode, map[string]interface{}{"pairs": pairs, "level": make([]int, nestedLevel)})
 
@@ -635,6 +655,7 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 				return result, nil
 			}
 			return dvals[1].String()
+
 		default:
 			// when it is a concret struct apparently for default :D
 
@@ -751,6 +772,42 @@ func tsprintField(v cue.Value, optionals ...int) (string, error) {
 
 	return "", valError(v, "unrecognized kind %s", ik)
 }
+
+// func tsprintNestedStructDefault(v cue.Value) (string, bool, error) {
+// 	if v.Kind() != cue.StructKind {
+// 		return "", false, valError(v, "The input cue object is not struct...")
+// 	}
+
+// 	iter, err := v.Fields()
+// 	if err != nil {
+// 		return "", false, err
+// 	}
+
+// 	// Initialize
+// 	defaultExist := false
+// 	result := v.Context().CompileString("")
+
+// 	for iter.Next() {
+// 		// Whatever the data type, we try to know whether default value exist
+// 		v, exists, err := getDefault(iter.Value())
+// 		if err != nil {
+// 			return "", defaultExist, err
+// 		}
+// 		if exists {
+// 			if iter.Value().Kind() == cue.StructKind {
+// 				val, ok, err := tsprintNestedStructDefault(iter.Value())
+// 			}
+// 			defaultExist = true
+// 			lable, _ := iter.Value().Label()
+// 			result = result.FillPath(cue.ParsePath(lable), v)
+// 		}
+// 	}
+// 	if defaultExist {
+// 		return result, true, nil
+// 	} else {
+// 		return result, false, nil
+// 	}
+// }
 
 // ONLY call this function if it has been established that the provided Value is
 // Concrete.

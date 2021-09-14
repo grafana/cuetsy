@@ -17,14 +17,6 @@ Foo: {
   I2_TypedList: ATypedList
 } @cuetsy(kind="interface")
 
-NestedFoo: {
-  Bar: string | *"ohai"
-  Foo: {
-    Bar: string | *"ohai"
-    Baz: AType
-  }
-} @cuetsy(kind="interface")
-
 -- ts  --
 export type AType = 'foo' | 'bar' | 'baz';
 export const aTypeDefault: AType = 'baz'
@@ -43,14 +35,4 @@ export const fooDefault: Foo = {
   C: aTypeDefault,
   I1_TypedList: [1, 2],
   I2_TypedList: aTypedListDefault,
-}
-export interface NestedFoo {
-  Bar: string;
-  Foo: {
-    Bar: string;
-    Baz: AType;
-  };
-}
-export const nestedFooDefault: NestedFoo = {
-  Bar: 'ohai',
 }
