@@ -102,6 +102,15 @@ func (g *generator) exec(t *template.Template, data interface{}) {
 	g.addErr(t.Execute(&g.w, data))
 }
 
+func execGetString(t *template.Template, data interface{}) (string, error) {
+	var tpl bytes.Buffer
+	if err := t.Execute(&tpl, data); err != nil {
+		return "", err
+	}
+	result := tpl.String()
+	return result, nil
+}
+
 func (g *generator) decl(name string, v cue.Value) {
 	// dumpJSON(name, v, false)
 	if !gast.IsExported(name) {
@@ -161,7 +170,7 @@ func (g *generator) genType(name string, v cue.Value) {
 	switch op {
 	case cue.OrOp:
 		for _, dv := range dvals {
-			tok, err := tsprintField(dv)
+			tok, err := tsprintField(dv, 0)
 			if err != nil {
 				g.addErr(err)
 				return
@@ -169,7 +178,7 @@ func (g *generator) genType(name string, v cue.Value) {
 			tokens = append(tokens, tok)
 		}
 	case cue.NoOp:
-		tok, err := tsprintField(v)
+		tok, err := tsprintField(v, 0)
 		if err != nil {
 			g.addErr(err)
 			return
@@ -183,7 +192,7 @@ func (g *generator) genType(name string, v cue.Value) {
 
 	d, ok := v.Default()
 	if ok {
-		dStr, err := tsprintField(d)
+		dStr, err := tsprintField(d, 0)
 		g.addErr(err)
 		tvars["default"] = dStr
 	}
@@ -247,7 +256,7 @@ func getDefaultValue(v cue.Value) (string, error) {
 	def, ok := v.Default()
 	if ok {
 		if v.IncompleteKind() == cue.StringKind {
-			dStr, err := tsprintField(def)
+			dStr, err := tsprintField(def, 0)
 			if err != nil {
 				return "", err
 			}
@@ -468,7 +477,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			k += "?"
 		}
 
-		vstr, err := tsprintField(fields.Value())
+		vstr, err := tsprintField(fields.Value(), 0)
 		if err != nil {
 			g.addErr(err)
 			return
@@ -476,53 +485,62 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 		kv := KV{K: k, V: vstr}
 
-		d, ok := fields.Value().Default()
-		// [...number] results in [], which is not desired
-		// TODO: There must be a better way to handle this
+		exists, defaultV, err := tsPrintDefault(fields.Value())
+		g.addErr(err)
 
-		// Correct the list default value when it is not for real
-		if ok && d.Kind() == cue.ListKind {
-			len, err := d.Len().Int64()
-			if err != nil {
-				g.addErr(err)
-			}
-			var defaultExist bool
-			if len <= 0 {
-				op, vals := fields.Value().Expr()
-				if op == cue.OrOp {
-					for _, val := range vals {
-						vallen, _ := d.Len().Int64()
-						if val.Kind() == cue.ListKind && vallen <= 0 {
-							defaultExist = true
-							break
-						}
-					}
-					if !defaultExist {
-						ok = false
-					}
-				} else {
-					ok = false
-				}
-			}
-		}
-
-		if ok {
-			dStr, err := tsprintField(d)
-			g.addErr(err)
-			kv.Default = dStr
-			if isReference(d) {
-				kv.Default = strcase.ToLowerCamel(kv.Default + "Default")
-			}
+		if exists {
 			tvars["defaults"] = true
+			kv.Default = defaultV
 		}
-
 		pairs = append(pairs, kv)
 	}
 
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
 	tvars["pairs"] = pairs
-
 	g.exec(interfaceCode, tvars)
+}
+
+func tsPrintDefault(v cue.Value) (bool, string, error) {
+	var result string
+	d, ok := v.Default()
+	// [...number] results in [], which is a fake default, we need to correct it here.
+	if ok && d.Kind() == cue.ListKind {
+		len, err := d.Len().Int64()
+		if err != nil {
+			return false, "", err
+		}
+		var defaultExist bool
+		if len <= 0 {
+			op, vals := v.Expr()
+			if op == cue.OrOp {
+				for _, val := range vals {
+					vallen, _ := d.Len().Int64()
+					if val.Kind() == cue.ListKind && vallen <= 0 {
+						defaultExist = true
+						break
+					}
+				}
+				if !defaultExist {
+					ok = false
+				}
+			} else {
+				ok = false
+			}
+		}
+	}
+
+	if ok {
+		dStr, err := tsprintField(d, 0)
+		if err != nil {
+			return false, result, err
+		}
+		result = dStr
+		if isReference(d) {
+			result = strcase.ToLowerCamel(result + "Default")
+		}
+		return true, result, nil
+	}
+	return false, result, nil
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided
@@ -531,7 +549,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 // The provided Value must be a simple expression (loosely defined, until
 // something more precise is understood); e.g., this will NOT render a struct
 // literal.
-func tsprintField(v cue.Value) (string, error) {
+func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 	// References appear to be largely orthogonal to the Kind system. Handle them first.
 	if isReference(v) {
 		_, path := v.ReferencePath()
@@ -553,7 +571,28 @@ func tsprintField(v cue.Value) (string, error) {
 			// which should be available via String() of the second op from Expr()
 			_ = s
 			if op != cue.SelectorOp {
-				panic("fixme")
+				iter, err := v.Fields()
+				if err != nil {
+					return "", valError(v, "something went wrong when generate nested structs")
+				}
+
+				var pairs []KV
+				for iter.Next() {
+					ele, err := tsprintField(iter.Value(), nestedLevel+1)
+					if err != nil {
+						return "", valError(v, err.Error())
+					}
+					if isReference(iter.Value()) {
+						ele = strcase.ToLowerCamel(ele + "Default")
+					}
+					pairs = append(pairs, KV{K: iter.Label(), V: ele})
+				}
+				result, err := execGetString(nestedStructCode, map[string]interface{}{"pairs": pairs, "level": make([]int, nestedLevel+1)})
+
+				if err != nil {
+					return "", valError(v, err.Error())
+				}
+				return result, nil
 			}
 			return dvals[1].String()
 		default:
@@ -570,7 +609,7 @@ func tsprintField(v cue.Value) (string, error) {
 		iter, _ := v.List()
 		var parts []string
 		for iter.Next() {
-			part, err := tsprintField(iter.Value())
+			part, err := tsprintField(iter.Value(), 0)
 			if err != nil {
 				return "", err
 			}
@@ -587,7 +626,7 @@ func tsprintField(v cue.Value) (string, error) {
 	disj := func(dvals []cue.Value) (string, error) {
 		parts := make([]string, 0, len(dvals))
 		for _, dv := range dvals {
-			p, err := tsprintField(dv)
+			p, err := tsprintField(dv, 0)
 			if err != nil {
 				return "", err
 			}
@@ -607,7 +646,7 @@ func tsprintField(v cue.Value) (string, error) {
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		has := e.Exists()
 		if has {
-			elemstr, err := tsprintField(e)
+			elemstr, err := tsprintField(e, 0)
 			if err != nil {
 				return "", err
 			}
