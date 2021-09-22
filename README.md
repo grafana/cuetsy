@@ -220,64 +220,70 @@ export interface BInterface extends AInterface {
 | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------- |
 | [Disjunction](https://cuelang.org/docs/tutorials/tour/types/disjunctions/), [Struct](https://cuelang.org/docs/tutorials/tour/types/optional/) | [Enum](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#enums) | `enum`                |
 
-Cuetsy supports two ways of expressing TypeScript enums in CUE:
+TypeScript's enums are union types, and are a mostly-exact mapping of what can
+be expressed with CUE's disjunctions. Disjunctions may contain only string or
+numeric values.
 
-#### Disjunction style
-
-Disjunctions may be used in a very similar way to Union Types. The keys of the
-enum are automatically inferred as the titled camel-case variant of their value:
+The member names (keys) of the TypeScript enum are automatically inferred as the
+titled camel-case variant of their string value, but may be explicitly specified
+using the `memberNames` attribute. If the disjunction contains any numeric
+values, `memberNames` must be specified.
 
 <table>
-<tr><th>CUE</th><th>TypeScript</th></tr>
 <tr>
-<td>
-
-```cue
-MyEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
-```
-
-</td>
-<td>
-
-```typescript
-export enum MyEnum {
-  Bar = "bar",
-  Baz = "baz",
-  Foo = "foo",
-}
-```
-
-</td>
+<th>CUE</th>
+<th>TypeScript</th>
 </tr>
-</table>
-
-#### Struct style
-
-If the implicit keys are insufficient, the `struct` based style gives more
-control:
-
-<table>
-<tr><th>CUE</th><th>TypeScript</th></tr>
 <tr>
 <td>
 
 ```cue
-MyEnum: {
-    Foo: "foo"
-    iCanChoose: "whateverILike"
-} @cuetsy(kind="enum")
+// Enum-level comment
+// Foo: member-level comment
+// Bar: member-level comment
+AutoCamel: "foo" | "bar" @cuetsy(kind="enum")
+// Enum-level comment
+// Foo: member-level comment
+// Bar: member-level comment
+ManualCamel: "foo" | "bar" @cuetsy(kind="enum",memberNames="Foo|Bar")
+Arbitrary: "foo" | "bar" @cuetsy(kind="enum",memberNames="Zip|Zap")
+Numeric: 0 | 1 | 2 @cuetsy(kind="enum",memberNames="Zero|One|Two")
+ErrMismatchLen: "a" | "b" | "c" @cuetsy(kind="enum",memberNames="a|b")
+ErrNamelessNumerics: 0 | 1 | 2 @cuetsy(kind="enum")
 ```
 
 </td>
 <td>
 
-```typescript
-export enum MyEnum {
+```ts
+/**
+ * Enum-level comment
+ **/
+enum AutoCamel {
+  // member-level comment
   Foo = "foo",
-  iCanChoose = "whateverILike",
+  // member-level comment
+  Bar = "bar",
+}
+/**
+ * Enum-level comment
+ **/
+enum ManualCamel {
+  // member-level comment
+  Foo = "foo",
+  // member-level comment
+  Bar = "bar",
+}
+enum Arbitrary {
+  Zip = "foo",
+  Zap = "bar",
+}
+enum Numeric {
+  Zero = 0,
+  One = 1,
+  Two = 2,
 }
 ```
-
 </td>
 </tr>
 </table>
