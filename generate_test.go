@@ -1,4 +1,4 @@
-package encoder_test
+package cuetsy_test
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/pkg/strings"
 	"github.com/google/go-cmp/cmp"
-	"github.com/grafana/cuetsy/encoder"
+	"github.com/grafana/cuetsy"
 	"golang.org/x/tools/txtar"
 	"gotest.tools/assert"
 )
@@ -46,7 +46,7 @@ func TestGenerate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			out, err := encoder.Generate(i.Value(), encoder.Config{})
+			out, err := cuetsy.Generate(i.Value(), cuetsy.Config{})
 			if c.CaseType == ErrorType {
 				assert.Error(t, err, c.ERROR)
 			} else {

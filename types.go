@@ -1,4 +1,4 @@
-package encoder
+package cuetsy
 
 import "cuelang.org/go/cue"
 

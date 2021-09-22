@@ -1,4 +1,4 @@
-package encoder
+package cuetsy
 
 import (
 	"encoding/json"

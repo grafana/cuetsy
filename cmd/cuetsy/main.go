@@ -7,7 +7,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
-	"github.com/grafana/cuetsy/encoder"
+	"github.com/grafana/cuetsy"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	// Given the above input constraints, there _should_ only ever be a
 	// single element in this slice.
 	for _, inst := range instances {
-		b, err := encoder.Generate(inst.Value(), encoder.Config{})
+		b, err := cuetsy.Generate(inst.Value(), cuetsy.Config{})
 		if err != nil {
 			errors.Print(os.Stderr, err, &errors.Config{
 				Cwd: wd,
