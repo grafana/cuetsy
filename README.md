@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://cloud.drone.io/grafana/cuetsy">
+  <a href="https://drone.grafana.net/grafana/cuetsy">
     <img src="https://img.shields.io/drone/build/grafana/cuetsy?style=flat-square">
   </a>
   <a href="https://github.com/grafana/cuetsy/releases">
