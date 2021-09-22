@@ -79,7 +79,7 @@ func loadCases(dir string) ([]Case, error) {
 		if len(a.Files) != 2 {
 			return nil, fmt.Errorf("Malformed test case '%s': Must contain exactly two files (CUE and TS/ERR), but has %d", file, len(a.Files))
 		}
-		if strings.HasSuffix(fi.Name(), "error") {
+		if strings.HasSuffix(strings.TrimSuffix(fi.Name(), ".txtar"), "error") {
 			cases = append(cases, Case{
 				CaseType: ErrorType,
 				Name:     fi.Name(),
