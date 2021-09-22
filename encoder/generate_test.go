@@ -10,7 +10,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/pkg/strings"
 	"github.com/google/go-cmp/cmp"
-	"github.com/sdboyer/cuetsy/encoder"
+	"github.com/grafana/cuetsy/encoder"
 	"golang.org/x/tools/txtar"
 	"gotest.tools/assert"
 )

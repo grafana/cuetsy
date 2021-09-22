@@ -1,19 +1,19 @@
 <p align="center">
   <img
     width="300"
-    src="https://raw.githubusercontent.com/sdboyer/cuetsy/main/docs/logo/cuetsy.svg"
+    src="https://raw.githubusercontent.com/grafana/cuetsy/main/docs/logo/cuetsy.svg"
     alt="Cuetsy Logo"
   />
 </p>
 
 <p align="center">
-  <a href="https://cloud.drone.io/sdboyer/cuetsy">
-    <img src="https://img.shields.io/drone/build/sdboyer/cuetsy?style=flat-square">
+  <a href="https://cloud.drone.io/grafana/cuetsy">
+    <img src="https://img.shields.io/drone/build/grafana/cuetsy?style=flat-square">
   </a>
-  <a href="https://github.com/sdboyer/cuetsy/releases">
-    <img src="https://img.shields.io/github/release/sdboyer/cuetsy?style=flat-square" />
+  <a href="https://github.com/grafana/cuetsy/releases">
+    <img src="https://img.shields.io/github/release/grafana/cuetsy?style=flat-square" />
   </a>
-  <img src="https://img.shields.io/github/contributors/sdboyer/cuetsy?style=flat-square" />
+  <img src="https://img.shields.io/github/contributors/grafana/cuetsy?style=flat-square" />
 </p>
 
 <p align="center">
@@ -94,7 +94,7 @@ features. However, the following are supported:
 Cuetsy can be installed using [Go](https://golang.org) 1.16+
 
 ```shell
-$ go install github.com/sdboyer/cuetsy/cmd/cuetsy
+$ go install github.com/grafana/cuetsy/cmd/cuetsy
 ```
 
 ## Usage
