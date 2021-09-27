@@ -168,7 +168,11 @@ func (g *generator) genType(name string, v cue.Value) {
 	}
 
 	var tokens []string
+	// If there's an AndOp first, pass through it.
 	op, dvals := v.Expr()
+	if op == cue.AndOp {
+		op, dvals = dvals[0].Expr()
+	}
 	switch op {
 	case cue.OrOp:
 		for _, dv := range dvals {
@@ -216,16 +220,19 @@ type KV struct {
 func (g *generator) genEnum(name string, v cue.Value) {
 	var pairs []KV
 	var defaultValue string
-	tvars := map[string]interface{}{
-		"name":   name,
-		"export": true,
+
+	// FIXME compensate for attribute-applying call to Unify() on incoming Value
+	op, dvals := v.Expr()
+	if op == cue.AndOp {
+		v = dvals[0]
+		op, _ = v.Expr()
 	}
 
 	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
-	op, _ := v.Expr()
+	allowed := cue.StringKind | cue.NumberKind | cue.NumberKind
+	ik := v.IncompleteKind()
 	switch {
-	case op == cue.OrOp && (v.IncompleteKind() == cue.StringKind || v.IncompleteKind() == cue.IntKind ||
-		v.IncompleteKind() == cue.NumberKind || v.IncompleteKind() == cue.FloatKind):
+	case op == cue.OrOp && ik&allowed == ik:
 		orPairs, err := genOrEnum(v)
 		if err != nil {
 			g.addErr(err)
@@ -243,7 +250,12 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	sort.Slice(pairs, func(i, j int) bool {
 		return pairs[i].K < pairs[j].K
 	})
-	tvars["pairs"] = pairs
+
+	tvars := map[string]interface{}{
+		"name":   name,
+		"export": true,
+		"pairs":  pairs,
+	}
 
 	if defaultValue != "" {
 		tvars["default"] = defaultValue
@@ -846,10 +858,9 @@ func isReference(v cue.Value) bool {
 func referenceValueAs(v cue.Value, kinds ...tsKind) (string, error) {
 	op, dvals := v.Expr()
 
-	// References are a way of saying, "unify the referenced value at this
-	// position", so their outer op may (?) be an AndOp. If we see one, walk
-	// down through it and continue.
+	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	if op == cue.AndOp {
+		v = dvals[0]
 		op, dvals = dvals[0].Expr()
 	}
 
