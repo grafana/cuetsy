@@ -6,9 +6,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 )
 
 var jf io.Writer = ioutil.Discard
@@ -16,6 +16,42 @@ var jf io.Writer = ioutil.Discard
 func init() {
 	// prepdump()
 }
+
+type dumpFlag uint64
+
+const (
+	dumpErrs dumpFlag = 1 << iota
+	dumpRef
+	dumpAttrs
+	dumpSource
+	dumpKind
+	dumpIncompleteKind
+	dumpExpr
+	dumpStruct
+	dumpBool
+	dumpBytes
+	dumpDefault
+	dumpDocs
+	dumpErr
+	dumpEval
+	dumpExists
+	dumpInt
+	dumpInt64
+	dumpUint64
+	dumpFloat64
+	dumpIsClosed
+	dumpIsConcrete
+	dumpLabel
+	dumpList
+	dumpNull
+	dumpPath
+	dumpString
+)
+
+// Helper masks for common exploration patterns
+const (
+	hdumpRefs = dumpExpr | dumpRef | dumpStruct | dumpPath | dumpString | dumpAttrs
+)
 
 func prepdump() {
 	var err error
@@ -30,9 +66,9 @@ func prepdump() {
 //
 // For great grokking, because the underlying datastructures are too complex to
 // grasp directly.
-func dumpJSON(name string, v cue.Value, showerrs bool) {
+func dumpJSON(name string, v cue.Value, flag dumpFlag) {
 	whole := map[string]interface{}{
-		name: assembleValues(v, showerrs, 0),
+		name: assembleValues(v, flag, 0),
 	}
 	b, err := json.MarshalIndent(whole, "", "  ")
 	if err != nil {
@@ -42,10 +78,14 @@ func dumpJSON(name string, v cue.Value, showerrs bool) {
 	fmt.Fprint(jf, string(b))
 }
 
-func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]interface{}) {
+func assembleValues(v cue.Value, flags dumpFlag, depth int) (ret map[string]interface{}) {
 	ret = make(map[string]interface{})
 	r := func(iv cue.Value) map[string]interface{} {
-		return assembleValues(iv, showerrs, depth+1)
+		return assembleValues(iv, flags, depth+1)
+	}
+
+	fl := func(flag dumpFlag) bool {
+		return flag&flags == flag
 	}
 
 	if depth > 4 {
@@ -53,121 +93,155 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 		return
 	}
 
-	attr := v.Attribute(attrname)
-	if attr.Err() == nil {
-		val, found, err := attr.Lookup(0, "targetType")
-		if err == nil && found {
-			ret["Attr() targetType"] = val
+	doAttrs := func(v cue.Value) (attrs []string) {
+		if fl(dumpAttrs) {
+			for _, attr := range v.Attributes(cue.ValueAttr) {
+				attrs = append(attrs, fmt.Sprint(attr))
+			}
+		}
+		return
+	}
+
+	if attrs := doAttrs(v); len(attrs) > 0 {
+		ret["Attrs()"] = attrs
+	}
+
+	ref := func(v cue.Value) map[string]interface{} {
+		ret := make(map[string]interface{})
+		dv := cue.Dereference(v)
+		ret["eq"] = dv.Equals(v)
+		// ret["Dereference()"] = r(dv)
+
+		if dattrs := doAttrs(dv); len(dattrs) > 0 {
+			ret["Attrs()"] = dattrs
+		}
+
+		root, path := v.ReferencePath()
+		if root.Exists() {
+			ret["ReferencePath()"] = path.String()
+		}
+		return ret
+	}
+
+	if fl(dumpRef) {
+		ret["ref"] = ref(v)
+	}
+
+	if src := v.Source(); fl(dumpSource) && src != nil {
+		if isrc, ok := src.(*ast.Ident); ok {
+			ret["Source()"] = []string{fmt.Sprint(src), fmt.Sprintf("%T", isrc), fmt.Sprint(isrc.Scope), fmt.Sprint(isrc.Node)}
+		} else {
+			ret["Source()"] = []string{fmt.Sprint(src), fmt.Sprintf("%T", src)}
 		}
 	}
 
-	// dv := cue.Dereference(v)
-	// if !dv.Equals(v) {
-	// 	ret["Dereference()"] = r(dv)
-	// } else {
-	// 	ret["Dereference()"] = "no-op"
-	// }
-
-	ret["Source() type"] = fmt.Sprintf("%T", v.Source())
-
-	if br, err := v.Bool(); err == nil {
-		ret["Bool()"] = br
-	} else if showerrs {
-		ret["ERR Bool()"] = err
+	if fl(dumpBool) {
+		if br, err := v.Bool(); err == nil {
+			ret["Bool()"] = br
+		} else if fl(dumpErrs) {
+			ret["ERR Bool()"] = err
+		}
 	}
 
-	if by, err := v.Bytes(); err == nil {
-		ret["Bytes()"] = string(by)
-	} else if showerrs {
-		ret["ERR Bytes()"] = err
+	if fl(dumpBytes) {
+		if by, err := v.Bytes(); err == nil {
+			ret["Bytes()"] = string(by)
+		} else if fl(dumpErrs) {
+			ret["ERR Bytes()"] = err
+		}
 	}
 
 	// skip Decimal (internal only)
 
-	if def, exists := v.Default(); exists {
-		ret["Default()"] = r(def)
-	}
-
-	// Skipping docs for now because...annoying
-	// if docs := v.Doc(); len(docs) > 0 {
-	// 	fmt.Fprintf(b, "%sDoc():\n", )
-	// 	for _, d := range docs {
-	// 		fmt.Fprintf(b, "%s\n", d)
-	// 	}
-	// }
-
-	if elem, exists := v.Elem(); exists {
-		ret["Elem()"] = r(elem)
-	}
-
-	if err := v.Err(); err != nil {
-		ret["Err()"] = err
-	}
-
-	if eval := v.Eval(); !v.Equals(eval) {
-		ret["Eval() new val"] = r(eval)
-	}
-
-	// ret["Exists()"] = v.Exists()
-
-	op, vals := v.Expr()
-	if op != cue.NoOp {
-		var exprvals []map[string]interface{}
-		for _, val := range vals {
-			if !v.Equals(val) {
-				exprvals = append(exprvals, r(val))
-			}
+	if fl(dumpDefault) {
+		if def, exists := v.Default(); exists {
+			ret["Default()"] = r(def)
 		}
-		if len(exprvals) > 0 {
-			ret["Expr()"] = map[string]interface{}{
-				"Op":    op.String(),
-				"Parts": exprvals,
+	}
+
+	if fl(dumpDocs) {
+		if docs := v.Doc(); len(docs) > 0 {
+			var docsl []string
+			for _, d := range docs {
+				docsl = append(docsl, fmt.Sprint(d))
 			}
+			ret["Docs()"] = docsl
 		}
+	}
+
+	if fl(dumpErr) {
+
+		if err := v.Err(); err != nil {
+			ret["Err()"] = err
+		}
+	}
+
+	if fl(dumpEval) {
+		ret["Eval()"] = r(v.Eval())
+	}
+
+	if fl(dumpExists) {
+		ret["Exists()"] = v.Exists()
 	}
 
 	// Skip Fields(), walking is up to the caller
 
-	if v2, err := v.Float64(); err == nil {
-		ret["Float64()"] = v2
-	} else if showerrs {
-		ret["ERR Float64()"] = err
+	if fl(dumpFloat64) {
+		if v2, err := v.Float64(); err == nil {
+			ret["Float64()"] = v2
+		} else if fl(dumpErrs) {
+			ret["ERR Float64()"] = err
+		}
 	}
 
-	ret["IncompleteKind()"] = fmt.Sprint(v.IncompleteKind())
-
-	if v2, err := v.Int(nil); err == nil {
-		ret["Int()"] = v2
-	} else if showerrs {
-		ret["ERR Int()"] = err
+	if fl(dumpInt) {
+		if v2, err := v.Int(nil); err == nil {
+			ret["Int()"] = v2
+		} else if fl(dumpErrs) {
+			ret["ERR Int()"] = err
+		}
 	}
 
-	if v2, err := v.Int64(); err == nil {
-		ret["Int64()"] = v2
-	} else if showerrs {
-		ret["ERR Int64()"] = err
+	if fl(dumpInt64) {
+		if v2, err := v.Int64(); err == nil {
+			ret["Int64()"] = v2
+		} else if fl(dumpErrs) {
+			ret["ERR Int64()"] = err
+		}
 	}
 
-	ret["IsClosed()"] = v.IsClosed()
-	ret["IsConcrete()"] = v.IsConcrete()
-	ret["Kind()"] = fmt.Sprint(v.Kind())
+	if fl(dumpIsClosed) {
+		ret["IsClosed()"] = v.IsClosed()
+	}
+	if fl(dumpIsConcrete) {
+		ret["IsConcrete()"] = v.IsConcrete()
+	}
+	if fl(dumpKind) {
+		ret["Kind()"] = fmt.Sprint(v.Kind())
+	}
 
-	if label, exists := v.Label(); exists {
-		ret["Label()"] = label
+	if fl(dumpLabel) {
+		if label, exists := v.Label(); exists {
+			ret["Label()"] = label
+		}
 	}
 
 	// Skipping Len. If the return is just a number, why is it a Value?
 
-	if _, err := v.List(); err == nil {
-		ret["List()"] = "returns iter"
-	} else if showerrs {
-		ret["ERR List()"] = err
+	if fl(dumpList) {
+		if _, err := v.List(); err == nil {
+			ret["List()"] = "returns iter"
+		} else if fl(dumpErrs) {
+			ret["ERR List()"] = err
+		}
 	}
 
-	if err := v.Null(); err == nil {
-		ret["Null()"] = "yup it's null"
-	} else if showerrs {
-		ret["ERR Null()"] = err
+	if fl(dumpNull) {
+		if err := v.Null(); err == nil {
+			ret["Null()"] = "yup it's null"
+		} else if fl(dumpErrs) {
+			ret["ERR Null()"] = err
+		}
 	}
 
 	ret["Path()"] = fmt.Sprint(v.Path())
@@ -175,35 +249,61 @@ func assembleValues(v cue.Value, showerrs bool, depth int) (ret map[string]inter
 	// Skip Pos()
 	// Skip Reader()
 
-	if v2, err := v.String(); err == nil {
-		ret["String()"] = v2
-	} else if showerrs {
-		ret["ERR String()"] = err
-	}
-
-	if strc, err := v.Struct(); err == nil {
-		sub := make(map[string]map[string]interface{})
-		for i := 0; i < strc.Len(); i++ {
-			sk, sv := strc.At(i)
-			sub[sk] = r(sv)
+	if fl(dumpString) {
+		if v2, err := v.String(); err == nil {
+			ret["String()"] = v2
+		} else if fl(dumpErrs) {
+			ret["ERR String()"] = err
 		}
-		ret["Struct() fields"] = sub
-	} else if showerrs {
-		ret["ERR Struct()"] = err
 	}
 
-	_, path := v.Reference()
-	if len(path) > 0 {
-		ret["Reference() path"] = strings.Join(path, ".")
+	if fl(dumpStruct) {
+		if strc, err := v.Struct(); err == nil {
+			sub := make(map[string]map[string]interface{})
+			var fld []string
+			for i := 0; i < strc.Len(); i++ {
+				sk, sv := strc.At(i)
+				sub[sk] = r(sv)
+				fld = append(fld, sk)
+			}
+			// ret["Struct() fields"] = sub
+			ret["Struct() fields"] = fld
+		} else if fl(dumpErrs) {
+			ret["ERR Struct()"] = err
+		}
 	}
 
-	// Skip Syntax()
-	if v2, err := v.Uint64(); err == nil {
-		ret["Uint64()"] = v2
-	} else if showerrs {
-		ret["ERR Uint64()"] = err
+	// ret["Syntax()"] = v.Syntax(cue.All())
+
+	if fl(dumpUint64) {
+		if v2, err := v.Uint64(); err == nil {
+			ret["Uint64()"] = v2
+		} else if fl(dumpErrs) {
+			ret["ERR Uint64()"] = err
+		}
 	}
 
 	// Skip Validate()
+
+	if fl(dumpExpr) {
+		op, vals := v.Expr()
+		if op != cue.NoOp {
+			var exprvals []map[string]interface{}
+			for _, val := range vals {
+				if !v.Equals(val) {
+					exprvals = append(exprvals, r(val))
+				} else {
+					exprvals = append(exprvals, map[string]interface{}{"(self)": "Equal()s parent"})
+				}
+			}
+			if len(exprvals) > 0 {
+				ret["Expr()"] = map[string]interface{}{
+					"Op":    op.String(),
+					"Parts": exprvals,
+				}
+			}
+		}
+	}
+
 	return
 }
