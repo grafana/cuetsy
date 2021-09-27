@@ -1,0 +1,18 @@
+Verifies shorthand structs are generated correctly
+
+-- one.cue --
+package test
+
+TwoLevel: NestedDecl: {
+    InnerOne: number
+    InnerTwo: number
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface TwoLevel {
+  NestedDecl: {
+    InnerOne: number;
+    InnerTwo: number;
+  };
+}
