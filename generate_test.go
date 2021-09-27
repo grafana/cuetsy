@@ -8,14 +8,16 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/pkg/strings"
 	"github.com/google/go-cmp/cmp"
 	"github.com/grafana/cuetsy"
+	"github.com/grafana/cuetsy/internal/cuetxtar"
 	"golang.org/x/tools/txtar"
 	"gotest.tools/assert"
 )
 
-const CasesDir = "tests"
+const CasesDir = "testdata"
 
 type TestCaseType int
 
@@ -31,6 +33,34 @@ type Case struct {
 	CUE   string
 	TS    string
 	ERROR string
+}
+
+func TestGenerateWithImports(t *testing.T) {
+	test := cuetxtar.TxTarTest{
+		Root: "./testdata/imports",
+		Name: "gen",
+		ToDo: map[string]string{
+			"imports/oneref_verbose":   "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
+			"imports/struct_shorthand": "Shorthand struct notation is currently unsupported, needs fixing",
+		},
+	}
+
+	ctx := cuecontext.New()
+
+	test.Run(t, func(t *cuetxtar.Test) {
+		v := ctx.BuildInstance(t.ValidInstances()[0])
+		if v.Err() != nil {
+			t.Fatal(v.Err())
+		}
+
+		b, err := cuetsy.Generate(v, cuetsy.Config{})
+		if err != nil {
+			errors.Print(t, err, nil)
+			t.Fatal(errors.Details(err, nil))
+		}
+
+		_, _ = t.Write(b)
+	})
 }
 
 func TestGenerate(t *testing.T) {
@@ -70,6 +100,9 @@ func loadCases(dir string) ([]Case, error) {
 	var cases []Case
 
 	for _, fi := range files {
+		if fi.IsDir() {
+			continue
+		}
 		file := filepath.Join(dir, fi.Name())
 		a, err := txtar.ParseFile(file)
 		if err != nil {
@@ -79,17 +112,18 @@ func loadCases(dir string) ([]Case, error) {
 		if len(a.Files) != 2 {
 			return nil, fmt.Errorf("Malformed test case '%s': Must contain exactly two files (CUE and TS/ERR), but has %d", file, len(a.Files))
 		}
-		if strings.HasSuffix(strings.TrimSuffix(fi.Name(), ".txtar"), "error") {
+		name := strings.TrimSuffix(fi.Name(), ".txtar")
+		if strings.HasSuffix(name, "error") {
 			cases = append(cases, Case{
 				CaseType: ErrorType,
-				Name:     fi.Name(),
+				Name:     name,
 				CUE:      string(a.Files[0].Data),
 				ERROR:    strings.TrimSuffix(string(a.Files[1].Data), "\n"),
 			})
 		} else {
 			cases = append(cases, Case{
 				CaseType: TSType,
-				Name:     fi.Name(),
+				Name:     name,
 				CUE:      string(a.Files[0].Data),
 				TS:       string(a.Files[1].Data),
 			})
