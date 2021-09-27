@@ -141,7 +141,7 @@ func (g *generator) decl(name string, v cue.Value) {
 	// - Disallow exported structs without an annotation...? The only goal there would
 	//   be to try to provide more guiding guardrails to users
 
-	tst, err := getTSTarget(v)
+	tst, err := getKindFor(v)
 	if err != nil {
 		// Ignore values without attributes
 		return
@@ -412,30 +412,9 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		case cue.OrOp:
 			return valError(wv, "typescript interfaces cannot be constructed from disjunctions")
 		case cue.SelectorOp:
-			deref := cue.Dereference(wv)
-			dstr, _ := dvals[1].String()
-			var exstr string
-			switch dvals[0].Source().(type) {
-			default:
-				return valError(wv, "unknown selector subject type, cannot translate")
-			case nil:
-				// A nil subject means an unqualified selector (no "."
-				// literal).  This can only possibly be a reference to some
-				// sibling or parent of the top-level Value being generated.
-				// (We can't do cycle detection with the meager tools
-				// exported in cuelang.org/go/cue, so all we have for the
-				// parent case is hopium.)
-				if _, ok := dvals[1].Source().(*ast.Ident); ok && checkKindAttr(kindInterface, deref) {
-					exstr = dstr
-				}
-			case *ast.SelectorExpr:
-				if checkKindAttr(kindInterface, deref) {
-					exstr = dstr
-				}
-			case *ast.Ident:
-				if checkKindAttr(kindInterface, deref) {
-					exstr = fmt.Sprintf("%s.%s", dvals[0].Source(), dstr)
-				}
+			exstr, err := referenceValueAs(wv, kindInterface)
+			if err != nil {
+				return err
 			}
 
 			// If we have a string to add to the list of "extends", then also
@@ -443,7 +422,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			if exstr != "" {
 				some = true
 				extends = append(extends, exstr)
-				nolit = nolit.Unify(deref)
+				nolit = nolit.Unify(cue.Dereference(wv))
 			}
 			return nil
 		case cue.AndOp:
@@ -793,7 +772,7 @@ func tsprintType(k cue.Kind) string {
 	}
 }
 
-func getTSTarget(v cue.Value) (tsKind, error) {
+func getKindFor(v cue.Value) (tsKind, error) {
 	// Direct lookup of attributes with Attribute() seems broken-ish, so do our
 	// own search as best we can, allowing ValueAttrs, which include both field
 	// and decl attributes.
@@ -822,18 +801,8 @@ func getTSTarget(v cue.Value) (tsKind, error) {
 	return tsKind(tt), nil
 }
 
-// Checks if the supplied Value has an attribute indicating the given targetAttr
-func checkKindAttr(t tsKind, v cue.Value, kinds ...tsKind) bool {
-	tt, err := getTSTarget(v)
-	if err != nil {
-		return false
-	}
-
-	return tt == t
-}
-
 func targetsKind(v cue.Value, kinds ...tsKind) bool {
-	vkind, err := getTSTarget(v)
+	vkind, err := getKindFor(v)
 	if err != nil {
 		return false
 	}
@@ -857,6 +826,7 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 	return errors.Newf(s.Pos(), format, args...)
 }
 
+// TODO remove this, it's absolutely not right
 func isReference(v cue.Value) bool {
 	_, path := v.ReferencePath()
 	if len(path.Selectors()) > 0 {
