@@ -44,6 +44,7 @@ NoAttrib: {
 -- out/gen --
 export interface OnlyRefs extends Local, dep.Attrib {
 }
+
 export interface OnlyRefsWithout {
   ImportedInner: {
     nestedval: string;
@@ -51,6 +52,8 @@ export interface OnlyRefsWithout {
   LNoA: number;
   importedNoAttribField: string;
 }
+
 export interface Local {
   localAttribField: string;
 }
+

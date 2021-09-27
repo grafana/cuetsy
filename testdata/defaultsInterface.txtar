@@ -27,9 +27,13 @@ NestedFoo: {
 
 -- ts  --
 export type AType = 'foo' | 'bar' | 'baz';
+
 export const aTypeDefault: AType = 'baz'
+
 export type ATypedList = number[];
+
 export const aTypedListDefault: ATypedList = [1, 2]
+
 export interface Foo {
   Bar: string;
   Baz: number;
@@ -37,6 +41,7 @@ export interface Foo {
   I1_TypedList: number[];
   I2_TypedList: ATypedList;
 }
+
 export const fooDefault: Foo = {
   Bar: 'ohai',
   Baz: 4,
@@ -44,6 +49,7 @@ export const fooDefault: Foo = {
   I1_TypedList: [1, 2],
   I2_TypedList: aTypedListDefault,
 }
+
 export interface NestedFoo {
   Bar: string;
   Foo: {
@@ -51,6 +57,8 @@ export interface NestedFoo {
     Baz: AType;
   };
 }
+
 export const nestedFooDefault: NestedFoo = {
   Bar: 'ohai',
 }
+

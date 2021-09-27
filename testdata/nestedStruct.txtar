@@ -38,6 +38,7 @@ export interface OneLevel {
   Bar: number;
   Foo: string;
 }
+
 export interface TwoLevel {
   NestedDecl: {
     InnerOne: number;
@@ -45,6 +46,7 @@ export interface TwoLevel {
   };
   Outer: string;
 }
+
 export interface ThreeLevel {
   NestedDecl1: {
     InnerOne: number;
@@ -56,7 +58,9 @@ export interface ThreeLevel {
   };
   Outer: string;
 }
+
 export interface Composed {
   NestedRef: OneLevel;
   Outer: string;
 }
+

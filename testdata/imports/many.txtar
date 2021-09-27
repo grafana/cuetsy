@@ -63,6 +63,7 @@ export interface Many extends dep.Attrib, Nested, Local {
   nestedval: string;
   tripleInner: string;
 }
+
 export interface Nested {
   NestOnce: {
     NestTwice: {
@@ -70,6 +71,8 @@ export interface Nested {
     };
   };
 }
+
 export interface Local {
   localAttribField: string;
 }
+

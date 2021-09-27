@@ -63,6 +63,7 @@ export interface Out extends Local {
     LNoA: number;
   };
 }
+
 export interface Nested {
   NestOnce: {
     NestTwice: {
@@ -70,6 +71,8 @@ export interface Nested {
     };
   };
 }
+
 export interface Local {
   localAttribField: string;
 }
+

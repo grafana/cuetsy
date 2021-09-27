@@ -20,9 +20,12 @@ var typeCode = tmpl("type", `
 {{end -}}
 {{if .export}}export {{end -}}
 type {{.name}} = {{ Join .tokens " | "}};
+
 {{- if .default }}
+
 {{if .export}}export {{end -}}
 const {{ToLowerCamel .name}}Default: {{.name}} = {{.default}}{{end}}
+
 `)
 
 // Generate a typescript enum declaration. Inputs:
@@ -41,9 +44,12 @@ enum {{.name}} {
   {{- range .pairs}}
   {{.K}} = {{.V}},{{end}}
 }
+
 {{- if .default }}
+
 {{if .export}}export {{end -}}
 const {{ToLowerCamel .name}}Default: {{.name}} = {{.name}}.{{.default}}{{end}}
+
 `)
 
 // Generate a typescript interface declaration. Inputs:
@@ -63,12 +69,15 @@ interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{e
   {{- range .pairs}}
   {{.K}}: {{.V}};{{end}}
 }
+
 {{- if .defaults }}
+
 {{if .export}}export {{end -}}
 const {{ToLowerCamel .name}}Default: {{.name}} = {
   {{- range .pairs}}{{if .Default}}
   {{.K}}: {{.Default}},{{end}}{{end}}
 }{{end}}
+
 `)
 
 var nestedStructCode = tmpl("nestedstruct", `

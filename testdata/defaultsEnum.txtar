@@ -14,10 +14,14 @@ export enum OrEnum {
   Baz = 'baz',
   Foo = 'foo',
 }
+
 export const orEnumDefault: OrEnum = OrEnum.Baz
+
 export enum OrEnumNumeric {
   Bar = 2,
   Foo = 1,
   Zip = 3,
 }
+
 export const orEnumNumericDefault: OrEnumNumeric = OrEnumNumeric.Foo
+
