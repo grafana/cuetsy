@@ -1,0 +1,75 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+Out: {
+    Local
+    literalField: string
+    reflocalattrib: Nested
+    reflocalnoattrib: LocalNoAttrib
+    refimportattrib: dep.Attrib
+    refimportnoattrib: dep.NoAttrib
+} @cuetsy(kind="interface")
+
+Nested: {
+    NestOnce: {
+        NestTwice: {
+            tripleInner: string
+        }
+    }
+} @cuetsy(kind="interface")
+
+Local: {
+    localAttribField: string
+} @cuetsy(kind="interface")
+
+LocalNoAttrib: {
+    LNoA: number
+}
+
+-- dep/file.cue --
+package dep
+
+Attrib: {
+    Inner: {
+      nestedval: string
+    }
+    importedAttribField: string
+} @cuetsy(kind="interface")
+
+NoAttrib: {
+    Inner: {
+      nestedval: string
+    }
+    importedNoAttribField: string
+}
+
+-- out/gen --
+export interface Out extends Local {
+  literalField: string;
+  refimportattrib: dep.Attrib;
+  refimportnoattrib: {
+    Inner: {
+      nestedval: string;
+    };
+    importedNoAttribField: string;
+  };
+  reflocalattrib: Nested;
+  reflocalnoattrib: {
+    LNoA: number;
+  };
+}
+export interface Nested {
+  NestOnce: {
+    NestTwice: {
+      tripleInner: string;
+    };
+  };
+}
+export interface Local {
+  localAttribField: string;
+}

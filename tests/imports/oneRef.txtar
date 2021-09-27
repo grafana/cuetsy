@@ -1,0 +1,37 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+With: dep.Attrib @cuetsy(kind="interface")
+Without: dep.NoAttrib @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+Attrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedAttribField: string
+} @cuetsy(kind="interface")
+
+NoAttrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedNoAttribField: string
+}
+
+-- out/gen --
+export interface With extends dep.Attrib {
+}
+export interface Without {
+  ImportedInner: {
+    nestedval: string;
+  };
+  importedNoAttribField: string;
+}
