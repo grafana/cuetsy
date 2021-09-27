@@ -27,7 +27,6 @@ const (
 	dumpKind
 	dumpIncompleteKind
 	dumpExpr
-	dumpStruct
 	dumpBool
 	dumpBytes
 	dumpDefault
@@ -35,6 +34,8 @@ const (
 	dumpErr
 	dumpEval
 	dumpExists
+	dumpStruct
+	dumpString
 	dumpInt
 	dumpInt64
 	dumpUint64
@@ -45,12 +46,13 @@ const (
 	dumpList
 	dumpNull
 	dumpPath
-	dumpString
 )
 
 // Helper masks for common exploration patterns
 const (
+	hdumpVals = dumpString | dumpInt | dumpInt64 | dumpUint64 | dumpFloat64 | dumpStruct
 	hdumpRefs = dumpExpr | dumpRef | dumpStruct | dumpPath | dumpString | dumpAttrs
+	hdumpTyp  = dumpExpr | dumpKind | dumpIncompleteKind
 )
 
 func prepdump() {
