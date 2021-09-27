@@ -1,7 +1,4 @@
--- cue.mod/module.cue --
-module: "example.com"
-
--- one.cue --
+-- cue --
 package test
 
 Out: {
@@ -24,5 +21,5 @@ NoAttrib: {
     bar: string
 }
 
--- out/gen --
-Input value must be valid
+-- err --
+Out.Nested.inner: conflicting values string and int (mismatched types string and int)
