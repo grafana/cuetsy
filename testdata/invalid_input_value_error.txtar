@@ -1,0 +1,25 @@
+-- cue --
+package test
+
+Out: {
+    Attrib
+    NoAttrib
+    baz: string
+} @cuetsy(kind="interface")
+
+Attrib: {
+    Nested: {
+      inner: string
+    }
+    foo: string
+} @cuetsy(kind="interface")
+
+NoAttrib: {
+    Nested: {
+      inner: int
+    }
+    bar: string
+}
+
+-- err --
+Out.Nested.inner: conflicting values string and int (mismatched types string and int)

@@ -1,0 +1,56 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+OnlyRefs: {
+    Local
+    dep.Attrib
+} @cuetsy(kind="interface")
+
+OnlyRefsWithout: {
+    LocalNoAttrib
+    dep.NoAttrib
+} @cuetsy(kind="interface")
+
+Local: {
+    localAttribField: string
+} @cuetsy(kind="interface")
+
+LocalNoAttrib: {
+    LNoA: number
+}
+
+-- dep/file.cue --
+package dep
+
+Attrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedAttribField: string
+} @cuetsy(kind="interface")
+
+NoAttrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedNoAttribField: string
+}
+
+-- out/gen --
+export interface OnlyRefs extends Local, dep.Attrib {
+}
+export interface OnlyRefsWithout {
+  ImportedInner: {
+    nestedval: string;
+  };
+  LNoA: number;
+  importedNoAttribField: string;
+}
+export interface Local {
+  localAttribField: string;
+}
