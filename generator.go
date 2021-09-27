@@ -600,9 +600,6 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 				if err != nil {
 					return "", valError(v, err.Error())
 				}
-				if isReference(iter.Value()) {
-					ele = strcase.ToLowerCamel(ele + "Default")
-				}
 				pairs = append(pairs, KV{K: iter.Label(), V: ele})
 			}
 			result, err := execGetString(nestedStructCode, map[string]interface{}{
