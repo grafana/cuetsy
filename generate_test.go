@@ -42,6 +42,7 @@ func TestGenerateWithImports(t *testing.T) {
 		ToDo: map[string]string{
 			"imports/oneref_verbose":   "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
 			"imports/struct_shorthand": "Shorthand struct notation is currently unsupported, needs fixing",
+			"imports/compose_enums":    "Referencing an enum with a default needs to render the member name, not the string or number it corresponds to",
 		},
 	}
 

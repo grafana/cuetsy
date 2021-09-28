@@ -1,0 +1,44 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+OrEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
+OrEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+
+Compose: {
+    localstr: OrEnum | *"baz"
+    localnum: OrEnumNumeric | *2
+    impstr: dep.DepEnum | *"bar"
+    impnum: dep.DepEnumNumeric | *3
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+DepEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
+DepEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+
+-- out/gen --
+export enum OrEnum {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+
+export enum OrEnumNumeric {
+  Bar = 2,
+  Foo = 1,
+  Zip = 3,
+}
+
+export interface Compose {
+  impnum: dep.DepEnumNumeric
+  impstr: dep.DepEnum
+  localnum: OrEnumNumeric
+  localstr: OrEnum
+}
+
