@@ -1,0 +1,26 @@
+
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+A: {
+    B: string | *"""
+    this
+    is a multiline
+    string
+    """
+} @cuetsy(kind="interface")
+
+-- out/gen --
+export interface A {
+  B: string;
+}
+
+export const aDefault: A = {
+  B: `this
+is a multiline
+string`,
+}
+

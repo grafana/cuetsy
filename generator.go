@@ -749,6 +749,9 @@ func tsprintConcrete(v cue.Value) string {
 		return "null"
 	case cue.StringKind:
 		s, _ := v.String()
+		if strings.Contains(s, "\n") {
+			return fmt.Sprintf("`%s`", s)
+		}
 		return fmt.Sprintf("'%s'", s)
 	case cue.FloatKind:
 		f, _ := v.Float64()
