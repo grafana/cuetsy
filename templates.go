@@ -13,19 +13,17 @@ import (
 // .name		  The name of the typescript type
 // .tokens		Slice of token strings
 var typeCode = tmpl("type", `
-{{- if .maturity -}}
+{{if .maturity -}}
 /**
  * {{.maturity}}
  */
 {{end -}}
 {{if .export}}export {{end -}}
 type {{.name}} = {{ Join .tokens " | "}};
-
 {{- if .default }}
 
 {{if .export}}export {{end -}}
-const {{ToLowerCamel .name}}Default: {{.name}} = {{.default}}{{end}}
-
+const {{ToLowerCamel .name}}Default: {{.name}} = {{.default}};{{end}}
 `)
 
 // Generate a typescript enum declaration. Inputs:
@@ -34,7 +32,7 @@ const {{ToLowerCamel .name}}Default: {{.name}} = {{.default}}{{end}}
 // .name		  The name of the typescript enum
 // .pairs		  Slice of {K: string, V: string}
 var enumCode = tmpl("enum", `
-{{- if .maturity -}}
+{{if .maturity -}}
 /**
  * {{.maturity}}
  */
@@ -44,12 +42,10 @@ enum {{.name}} {
   {{- range .pairs}}
   {{.K}} = {{.V}},{{end}}
 }
-
 {{- if .default }}
 
 {{if .export}}export {{end -}}
-const {{ToLowerCamel .name}}Default: {{.name}} = {{.name}}.{{.default}}{{end}}
-
+const {{ToLowerCamel .name}}Default: {{.name}} = {{.name}}.{{.default}};{{end}}
 `)
 
 // Generate a typescript interface declaration. Inputs:
@@ -59,7 +55,7 @@ const {{ToLowerCamel .name}}Default: {{.name}} = {{.name}}.{{.default}}{{end}}
 // .extends		Slice of other interface names to extend
 // .defaults	Whether to generate a default const
 var interfaceCode = tmpl("interface", `
-{{- if .maturity -}}
+{{if .maturity -}}
 /**
  * {{.maturity}}
  */
@@ -69,24 +65,16 @@ interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{e
   {{- range .pairs}}
   {{.K}}: {{.V}};{{end}}
 }
-
 {{- if .defaults }}
 
 {{if .export}}export {{end -}}
 const {{ToLowerCamel .name}}Default: {{.name}} = {
   {{- range .pairs}}{{if .Default}}
-  {{.K}}: {{.Default}},{{end}}{{end}}
-}{{end}}
-
+  {{StripQ .K}}: {{.Default}},{{end}}{{end}}
+};{{end}}
 `)
 
-var nestedStructCode = tmpl("nestedstruct", `
-{{- if .maturity -}}
-/**
- * {{.maturity}}
- */
-{{end -}}
-{
+var nestedStructCode = tmpl("nestedstruct", `{
 {{- range .pairs}}
 {{ range $.level}}  {{end}}  {{.K}}: {{.V}};{{end}}
 {{ range $.level}}  {{end}}}`)
@@ -96,6 +84,9 @@ func tmpl(name, data string) *template.Template {
 	t.Funcs(template.FuncMap{
 		"Join":         strings.Join,
 		"ToLowerCamel": strcase.ToLowerCamel,
+		"StripQ": func(s string) string {
+			return strings.TrimSuffix(s, "?")
+		},
 	})
 	t = template.Must(t.Parse(data))
 	return t

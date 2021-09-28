@@ -7,6 +7,7 @@ E3: "e1str1" | "e1str2" | "e1str3" @cuetsy(kind="enum", memberNames="Foo|Bar|Zip
 E4: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
 
 -- ts  --
+
 export enum E1 {
   E1str1 = 'e1str1',
   E1str2 = 'e1str2',
@@ -31,4 +32,3 @@ export enum E4 {
   Foo = 1,
   Zip = 3,
 }
-

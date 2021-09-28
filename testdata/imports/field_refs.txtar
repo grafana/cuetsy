@@ -49,6 +49,7 @@ NoAttrib: {
 }
 
 -- out/gen --
+
 export interface Out extends Local {
   literalField: string;
   refimportattrib: dep.Attrib;
@@ -75,4 +76,3 @@ export interface Nested {
 export interface Local {
   localAttribField: string;
 }
-

@@ -38,6 +38,7 @@ I5: I2 & {
 I6: I2 & I3 @cuetsy(kind="interface")
 
 -- ts  --
+
 export enum E1 {
   E1str1 = 'e1str1',
   E1str2 = 'e1str2',
@@ -80,4 +81,3 @@ export interface I5 extends I2, I3 {
 
 export interface I6 extends I2, I3 {
 }
-

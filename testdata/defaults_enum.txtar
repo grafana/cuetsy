@@ -9,13 +9,14 @@ OrEnum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
 OrEnumNumeric: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
 
 -- ts  --
+
 export enum OrEnum {
   Bar = 'bar',
   Baz = 'baz',
   Foo = 'foo',
 }
 
-export const orEnumDefault: OrEnum = OrEnum.Baz
+export const orEnumDefault: OrEnum = OrEnum.Baz;
 
 export enum OrEnumNumeric {
   Bar = 2,
@@ -23,5 +24,4 @@ export enum OrEnumNumeric {
   Zip = 3,
 }
 
-export const orEnumNumericDefault: OrEnumNumeric = OrEnumNumeric.Foo
-
+export const orEnumNumericDefault: OrEnumNumeric = OrEnumNumeric.Foo;

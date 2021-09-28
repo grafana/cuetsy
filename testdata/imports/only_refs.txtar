@@ -42,6 +42,7 @@ NoAttrib: {
 }
 
 -- out/gen --
+
 export interface OnlyRefs extends Local, dep.Attrib {
 }
 
@@ -56,4 +57,3 @@ export interface OnlyRefsWithout {
 export interface Local {
   localAttribField: string;
 }
-

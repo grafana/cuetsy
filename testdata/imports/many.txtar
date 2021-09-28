@@ -53,6 +53,7 @@ NoAttrib: {
 }
 
 -- out/gen --
+
 export interface Many extends dep.Attrib, Nested, Local {
   LNoA: number;
   NestTwice: {
@@ -75,4 +76,3 @@ export interface Nested {
 export interface Local {
   localAttribField: string;
 }
-
