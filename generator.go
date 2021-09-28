@@ -9,8 +9,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/iancoleman/strcase"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
@@ -570,7 +568,7 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 		}
 		result = dStr
 		if isReference(d) {
-			result = strcase.ToLowerCamel(result + "Default")
+			result = "default" + result
 		}
 		return true, result, nil
 	}

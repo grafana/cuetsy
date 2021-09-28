@@ -3,8 +3,6 @@ package cuetsy
 import (
 	"strings"
 	"text/template"
-
-	"github.com/iancoleman/strcase"
 )
 
 // Generate a typescript type declaration. Inputs:
@@ -23,7 +21,7 @@ type {{.name}} = {{ Join .tokens " | "}};
 {{- if .default }}
 
 {{if .export}}export {{end -}}
-const {{ToLowerCamel .name}}Default: {{.name}} = {{.default}};{{end}}
+const default{{.name}}: {{.name}} = {{.default}};{{end}}
 `)
 
 // Generate a typescript enum declaration. Inputs:
@@ -45,7 +43,7 @@ enum {{.name}} {
 {{- if .default }}
 
 {{if .export}}export {{end -}}
-const {{ToLowerCamel .name}}Default: {{.name}} = {{.name}}.{{.default}};{{end}}
+const default{{.name}}: {{.name}} = {{.name}}.{{.default}};{{end}}
 `)
 
 // Generate a typescript interface declaration. Inputs:
@@ -68,7 +66,7 @@ interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{e
 {{- if .defaults }}
 
 {{if .export}}export {{end -}}
-const {{ToLowerCamel .name}}Default: {{.name}} = {
+const default{{.name}}: {{.name}} = {
   {{- range .pairs}}{{if .Default}}
   {{StripQ .K}}: {{.Default}},{{end}}{{end}}
 };{{end}}
@@ -82,8 +80,7 @@ var nestedStructCode = tmpl("nestedstruct", `{
 func tmpl(name, data string) *template.Template {
 	t := template.New(name)
 	t.Funcs(template.FuncMap{
-		"Join":         strings.Join,
-		"ToLowerCamel": strcase.ToLowerCamel,
+		"Join": strings.Join,
 		"StripQ": func(s string) string {
 			return strings.TrimSuffix(s, "?")
 		},

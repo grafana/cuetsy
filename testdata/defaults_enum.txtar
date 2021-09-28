@@ -16,7 +16,7 @@ export enum OrEnum {
   Foo = 'foo',
 }
 
-export const orEnumDefault: OrEnum = OrEnum.Baz;
+export const defaultOrEnum: OrEnum = OrEnum.Baz;
 
 export enum OrEnumNumeric {
   Bar = 2,
@@ -24,4 +24,4 @@ export enum OrEnumNumeric {
   Zip = 3,
 }
 
-export const orEnumNumericDefault: OrEnumNumeric = OrEnumNumeric.Foo;
+export const defaultOrEnumNumeric: OrEnumNumeric = OrEnumNumeric.Foo;

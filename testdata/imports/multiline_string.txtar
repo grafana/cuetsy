@@ -19,7 +19,7 @@ export interface A {
   B: string;
 }
 
-export const aDefault: A = {
+export const defaultA: A = {
   B: `this
 is a multiline
 string`,
