@@ -1,6 +1,7 @@
 package cuetsy_test
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -35,10 +36,13 @@ type Case struct {
 	ERROR string
 }
 
+var updateGolden = flag.Bool("update-golden", false, "Update golden files with test results")
+
 func TestGenerateWithImports(t *testing.T) {
 	test := cuetxtar.TxTarTest{
-		Root: "./testdata/imports",
-		Name: "gen",
+		Root:   "./testdata/imports",
+		Name:   "gen",
+		Update: *updateGolden,
 		ToDo: map[string]string{
 			"imports/oneref_verbose":   "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
 			"imports/struct_shorthand": "Shorthand struct notation is currently unsupported, needs fixing",
