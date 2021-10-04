@@ -1,0 +1,5 @@
+-- cue --
+A: int | *string @cuetsy(kind="type")
+
+-- err --
+cannot generate default values; default value is not concrete

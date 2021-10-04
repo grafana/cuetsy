@@ -1,0 +1,5 @@
+-- cue --
+B: "foo" | *("bar" | "baz") @cuetsy(kind="type")
+
+-- err --
+cannot generate default values; default value is not concrete

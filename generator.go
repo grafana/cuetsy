@@ -194,10 +194,9 @@ func (g *generator) genType(name string, v cue.Value) {
 
 	tvars["tokens"] = tokens
 
-	d, ok := v.Default()
+	ok, dStr, err := tsPrintDefault(v)
+	g.addErr(err)
 	if ok {
-		dStr, err := tsprintField(d, 0)
-		g.addErr(err)
 		tvars["default"] = dStr
 	}
 
@@ -562,6 +561,10 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 	}
 
 	if ok {
+		// when default exists and it is not concrete, we need to reject
+		if !d.IsConcrete() {
+			return ok, "", valError(d, "cannot generate default values; default value is not concrete")
+		}
 		dStr, err := tsprintField(d, 0)
 		if err != nil {
 			return false, result, err

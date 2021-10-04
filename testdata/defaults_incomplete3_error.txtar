@@ -1,0 +1,12 @@
+-- cue --
+ATypedList: [...int] | *[1,2] @cuetsy(kind="type")
+
+Foo: {
+  Bar: string | *"ohai"
+  Baz: int | *string
+  I1_TypedList: [...int] | *[1,2]
+  I2_TypedList: ATypedList
+} @cuetsy(kind="interface")
+
+-- ts --
+cannot generate default values; default value is not concrete
