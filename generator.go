@@ -507,13 +507,11 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		if iter.IsOptional() {
 			k += "?"
 		}
-
 		vstr, err := tsprintField(iter.Value(), 0)
 		if err != nil {
 			g.addErr(err)
 			return
 		}
-
 		kv := KV{K: k, V: vstr}
 
 		exists, defaultV, err := tsPrintDefault(iter.Value())
@@ -562,7 +560,11 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 
 	if ok {
 		// when default exists and it is not concrete, we need to reject
-		if !d.IsConcrete() {
+		isConcret, err := isCueObjConcrete(d)
+		if err != nil {
+			return ok, "", valError(d, err.Error())
+		}
+		if !isConcret {
 			return ok, "", valError(d, "cannot generate default values; default value is not concrete")
 		}
 		dStr, err := tsprintField(d, 0)
@@ -576,6 +578,38 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 		return true, result, nil
 	}
 	return false, result, nil
+}
+
+func isCueObjConcrete(obj cue.Value) (bool, error) {
+	// when object is concrete, we still need to check the subelement of struct or list is concrete,
+	// otherwise we correct the responds on function IsConcrete for the false positive
+	ok := obj.IsConcrete()
+	if ok {
+		var iter cue.Iterator
+		var err error
+		if obj.Kind() == cue.ListKind {
+			iter, err = obj.List()
+		} else if obj.Kind() == cue.StructKind {
+			var eleiter *cue.Iterator
+			eleiter, err = obj.Fields()
+			iter = *eleiter
+		}
+
+		if err != nil {
+			return ok, err
+		}
+		for iter.Next() {
+			isSubEleConcret, err := isCueObjConcrete(iter.Value())
+			if err != nil {
+				return ok, err
+			}
+			if !isSubEleConcret {
+				ok = false
+				break
+			}
+		}
+	}
+	return ok, nil
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided

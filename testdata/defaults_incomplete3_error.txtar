@@ -3,8 +3,8 @@ ATypedList: [...int] | *[1,2] @cuetsy(kind="type")
 
 Foo: {
   Bar: string | *"ohai"
-  Baz: int | *string
-  I1_TypedList: [...int] | *[1,2]
+  Baz: int | *1
+  I1_TypedList: *[...int] | [int,2]
   I2_TypedList: ATypedList
 } @cuetsy(kind="interface")
 
