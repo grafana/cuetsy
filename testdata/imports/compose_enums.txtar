@@ -37,11 +37,27 @@ export enum LocalEnum {
   Foo = 'foo',
 }
 
+export enum LocalEnumD {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+
+export const defaultLocalEnumD: LocalEnumD = LocalEnumD.Foo
+
 export enum LocalEnumNumeric {
   Two = 2,
   One = 1,
   Three = 3,
 }
+
+export enum LocalEnumNumericD {
+  Two = 2,
+  One = 1,
+  Three = 3,
+}
+
+export const defaultLocalEnumNumericD: LocalEnumNumericD = LocalEnumNumericD.One
 
 export interface Compose {
   impnum: dep.DepEnumNumeric
