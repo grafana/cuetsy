@@ -6,39 +6,61 @@ package test
 
 import "example.com/dep"
 
-OrEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
-OrEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+LocalEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
+LocalEnumD: *"foo" | "bar" | "baz" @cuetsy(kind="enum")
+LocalEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
+LocalEnumNumericD: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 
 Compose: {
-    localstr: OrEnum | *"baz"
-    localnum: OrEnumNumeric | *2
+    localstr: LocalEnum | *"baz"
+    localstrd: LocalEnumD
+    localnum: LocalEnumNumeric | *2
+    localnumd: LocalEnumNumericD
     impstr: dep.DepEnum | *"bar"
+    impstrd: dep.DepEnumD
     impnum: dep.DepEnumNumeric | *3
+    impnumd: dep.DepEnumNumericD
 } @cuetsy(kind="interface")
 
 -- dep/file.cue --
 package dep
 
 DepEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
-DepEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+DepEnumD: *"foo" | "bar" | "baz" @cuetsy(kind="enum")
+DepEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
+DepEnumNumericD: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 
 -- out/gen --
-export enum OrEnum {
+export enum LocalEnum {
   Bar = 'bar',
   Baz = 'baz',
   Foo = 'foo',
 }
 
-export enum OrEnumNumeric {
-  Bar = 2,
-  Foo = 1,
-  Zip = 3,
+export enum LocalEnumNumeric {
+  Two = 2,
+  One = 1,
+  Three = 3,
 }
 
 export interface Compose {
   impnum: dep.DepEnumNumeric
+  impnumd: dep.DepEnumNumericD
   impstr: dep.DepEnum
-  localnum: OrEnumNumeric
-  localstr: OrEnum
+  impstrd: dep.DepEnumD
+  localnum: LocalEnumNumeric
+  localnumd: LocalEnumNumericD
+  localstr: LocalEnum
+  localstrd: LocalEnumD
 }
 
+export const defaultCompose: Compose {
+  impnum: dep.DepEnumNumeric.Two
+  impnumd: dep.DepEnumNumericD.One
+  impstr: dep.DepEnum.Bar
+  impstrd: dep.DepEnum.Foo
+  localnum: LocalEnumNumeric.Two
+  localnumd: LocalEnumNumeric.One
+  localstr: LocalEnum.Baz
+  localstrd: LocalEnum.Foo
+}
