@@ -31,6 +31,7 @@ DepEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 DepEnumNumericD: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 
 -- out/gen --
+
 export enum LocalEnum {
   Bar = 'bar',
   Baz = 'baz',
@@ -43,21 +44,21 @@ export enum LocalEnumD {
   Foo = 'foo',
 }
 
-export const defaultLocalEnumD: LocalEnumD = LocalEnumD.Foo
+export const defaultLocalEnumD: LocalEnumD = LocalEnumD.Foo;
 
 export enum LocalEnumNumeric {
-  Two = 2,
   One = 1,
   Three = 3,
+  Two = 2,
 }
 
 export enum LocalEnumNumericD {
-  Two = 2,
   One = 1,
   Three = 3,
+  Two = 2,
 }
 
-export const defaultLocalEnumNumericD: LocalEnumNumericD = LocalEnumNumericD.One
+export const defaultLocalEnumNumericD: LocalEnumNumericD = LocalEnumNumericD.One;
 
 export interface Compose {
   impnum: dep.DepEnumNumeric
@@ -79,4 +80,4 @@ export const defaultCompose: Compose {
   localnumd: LocalEnumNumeric.One
   localstr: LocalEnum.Baz
   localstrd: LocalEnum.Foo
-}
+};
