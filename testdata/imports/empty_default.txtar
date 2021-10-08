@@ -1,0 +1,32 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+IEmptyStruct: {...} | *{} @cuetsy(kind="interface")
+TEmptyStruct: {...} | *{} @cuetsy(kind="type")
+EmptyList: [...int] | *[] @cuetsy(kind="type")
+
+Fields: {
+  EmptyStruct: {...} | *{}
+  EmptyList: [...int] | *[]
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface IEmptyStruct {
+}
+
+export type TEmptyStruct = {
+  };
+
+export type EmptyList = number[];
+
+export const defaultEmptyList: EmptyList = [];
+
+export interface Fields {
+  EmptyList: number[];
+  EmptyStruct: {
+  };
+}
