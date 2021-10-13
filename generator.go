@@ -577,6 +577,9 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 
 // Render a string containing a Typescript semantic equivalent to the provided
 // Value for placement in a single field, if possible.
+
+// The first problem we need to solve here is that when it is enum | an option of enum,
+// we lost the reference to another file
 func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 	// References are orthogonal to the Kind system. Handle them first.
 	path, err := referenceValueAs(v)
@@ -839,11 +842,51 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 // TODO remove this, it's absolutely not right
 func isReference(v cue.Value) bool {
 	_, path := v.ReferencePath()
-	if len(path.Selectors()) > 0 {
-		return true
-	}
+	return len(path.Selectors()) > 0
+}
 
-	return false
+func referenceHealthCheck(v cue.Value) error {
+	op, dvals := v.Expr()
+	var enumdef cue.Value
+	// when we don't do a disjuction here, we have nothing to check
+	if op == cue.OrOp {
+		enumIndex := -1
+		// try to find one disjuncted element is reference and the refered value is enum
+		for idx, dval := range dvals {
+			if isReference(dval) {
+				// If one of the value is a reference here, we need to check when it is an enum,
+				// all other disjuncted part should be element in the enum.
+				if kd, err := getKindFor(cue.Dereference(dval)); err == nil && kd == kindEnum {
+					enumIndex = idx
+					enumdef = cue.Dereference(dval)
+					break
+				}
+			}
+		}
+		// When we found a disjunction part that is a referenced enum,
+		// We need to check all other disjuncted parts, it should be element in the enum
+		if enumIndex != -1 {
+			for idx, dval := range dvals {
+				if idx == enumIndex {
+					continue
+				}
+				opt, enumelements := enumdef.Expr()
+				if opt == cue.OrOp {
+					found := false
+					for _, element := range enumelements {
+						if element.Equals(dval) {
+							found = true
+						}
+					}
+					if !found {
+						return valError(dval, "the element that disjuncted with enum has to be one of the enum values")
+					}
+				}
+			}
+		}
+		return nil
+	}
+	return nil
 }
 
 // referenceValueAs returns the string that should be used to create a Typescript
@@ -857,8 +900,11 @@ func isReference(v cue.Value) bool {
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
 func referenceValueAs(v cue.Value, kinds ...tsKind) (string, error) {
-	op, dvals := v.Expr()
+	if err := referenceHealthCheck(v); err != nil {
+		return "", err
+	}
 
+	op, dvals := v.Expr()
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	if op == cue.AndOp {
 		v = dvals[0]

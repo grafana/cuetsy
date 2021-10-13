@@ -1,0 +1,11 @@
+-- cue --
+package test
+
+LocalEnum: "foo" | "bar" | "baz" @cuetsy(kind="enum")
+
+Compose: {
+    localstr: LocalEnum | *"bax"
+} @cuetsy(kind="interface")
+
+-- err --
+the element that disjuncted with enum has to be one of the enum values
