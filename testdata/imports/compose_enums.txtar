@@ -22,6 +22,17 @@ Compose: {
     impnumd: dep.DepEnumNumericD
 } @cuetsy(kind="interface")
 
+ComposeAdd: {
+    localstr: LocalEnum | *"otherstr"
+    localstrd: LocalEnumD | *"otherstr"
+    localnum: LocalEnumNumeric | *4
+    localnumd: LocalEnumNumericD | *4
+    impstr: dep.DepEnum | *"otherstr"
+    impstrd: dep.DepEnumD | *"otherstr"
+    impnum: dep.DepEnumNumeric | *4
+    impnumd: dep.DepEnumNumericD | *4
+} @cuetsy(kind="interface")
+
 -- dep/file.cue --
 package dep
 
@@ -71,13 +82,35 @@ export interface Compose {
   localstrd: LocalEnumD
 }
 
-export const defaultCompose: Compose {
+export const defaultCompose: Compose = {
   impnum: dep.DepEnumNumeric.Two
-  impnumd: dep.DepEnumNumericD.One
+  impnumd: dep.DepEnumNumericD.One // Probably fine to reference the exported default, too
   impstr: dep.DepEnum.Bar
-  impstrd: dep.DepEnum.Foo
+  impstrd: dep.DepEnum.Foo // Probably fine to reference the exported default, too
   localnum: LocalEnumNumeric.Two
-  localnumd: LocalEnumNumeric.One
+  localnumd: LocalEnumNumeric.One // Probably fine to reference the exported default, too
   localstr: LocalEnum.Baz
-  localstrd: LocalEnum.Foo
+  localstrd: LocalEnum.Foo // Probably fine to reference the exported default, too
+};
+
+export interface ComposeAdd {
+  impnum: dep.DepEnumNumeric | 4
+  impnumd: dep.DepEnumNumericD | 4
+  impstr: dep.DepEnum | 'otherstr'
+  impstrd: dep.DepEnumD | 'otherstr'
+  localnum: LocalEnumNumeric | 4
+  localnumd: LocalEnumNumericD | 4
+  localstr: LocalEnum | 'otherstr'
+  localstrd: LocalEnumD | 'otherstr'
+}
+
+export const defaultComposeAdd: ComposeAdd = {
+  impnum: 4,
+  impnumd: 4,
+  impstr: 'otherstr',
+  impstrd: 'otherstr',
+  localnum: 4,
+  localnumd: 4,
+  localstr: 'otherstr',
+  localstrd: 'otherstr',
 };
