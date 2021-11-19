@@ -1,0 +1,38 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+MyType: 1 | 2 @cuetsy(kind="enum", memberNames="A|B")
+
+ModeOptions: ModeOptionsA | ModeOptionsB @cuetsy(kind="type")
+
+ModeOptionsA: {
+  type: MyType & 1 @cuetsy(forceText="MyType.A")
+  aProp: bool
+} @cuetsy(kind="interface")
+
+ModeOptionsB: {
+  type: MyType & 2 @cuetsy(forceText="MyType.B")
+  bProp: bool
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export enum MyType {
+  A = 1,
+  B = 2,
+}
+
+export type ModeOptions = ModeOptionsA | ModeOptionsB;
+
+export interface ModeOptionsA {
+  aProp: boolean;
+  type: MyType.A;
+}
+
+export interface ModeOptionsB {
+  bProp: boolean;
+  type: MyType.B;
+}
