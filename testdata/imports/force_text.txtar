@@ -4,7 +4,7 @@ module: "example.com"
 -- one.cue --
 package test
 
-MyType: 1 | 2 @cuetsy(kind="enum",memberNames="A|B")
+MyType: 1 | 2 @cuetsy(kind="enum", memberNames="A|B")
 
 ModeOptions: ModeOptionsA | ModeOptionsB @cuetsy(kind="type")
 
@@ -19,19 +19,20 @@ ModeOptionsB: {
 } @cuetsy(kind="interface")
 
 -- out/gen --
+
 export enum MyType {
-    A = 1,
-    B = 2,
+  A = 1,
+  B = 2,
 }
 
 export type ModeOptions = ModeOptionsA | ModeOptionsB;
-​
+
 export interface ModeOptionsA {
-  type: MyType.A;
   aProp: boolean;
+  type: MyType.A;
 }
 
 export interface ModeOptionsB {
-  type: MyType.B;
   bProp: boolean;
+  type: MyType.B;
 }
