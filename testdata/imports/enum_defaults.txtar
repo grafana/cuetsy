@@ -1,0 +1,55 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+Enum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
+EnumNumeric: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+
+Ref: {
+  le: Enum
+  len: EnumNumeric
+  dle: dep.DepEnum
+  dlen: dep.DepEnumNumeric
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+DepEnum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
+DepEnumNumeric: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+
+-- out/gen --
+
+export enum Enum {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+
+export const defaultEnum: Enum = Enum.Baz;
+
+export enum EnumNumeric {
+  Bar = 2,
+  Foo = 1,
+  Zip = 3,
+}
+
+export const defaultEnumNumeric: EnumNumeric = EnumNumeric.Foo;
+
+export interface Ref {
+  dle: dep.DepEnum;
+  dlen: dep.DepEnumNumeric;
+  le: Enum;
+  len: EnumNumeric;
+}
+
+export const defaultRef: Ref = {
+  dle: dep.defaultDepEnum,
+  dlen: dep.defaultDepEnumNumeric,
+  le: defaultEnum,
+  len: defaultEnumNumeric,
+};

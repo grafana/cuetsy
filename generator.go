@@ -568,7 +568,10 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 		}
 		result = dStr
 		if isReference(d) {
-			result = "default" + result
+			// FIXME this is just horrifingly coarse guessing, ugh we need an AST
+			parts := strings.Split(result, ".")
+			parts[len(parts)-1] = "default" + parts[len(parts)-1]
+			result = strings.Join(parts, ".")
 		}
 		return true, result, nil
 	}
