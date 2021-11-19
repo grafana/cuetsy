@@ -1,0 +1,63 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+With: dep.Attrib @cuetsy(kind="interface")
+Without: dep.NoAttrib @cuetsy(kind="interface")
+
+LocalStruct: {
+    localstructfield: string
+} @cuetsy(kind="interface")
+
+LocalScalar: string @cuetsy(kind="type")
+
+UnionType: With | Without | LocalStruct | LocalScalar @cuetsy(kind="type")
+
+UnionInterface: {
+    field: With | Without | LocalStruct | LocalScalar
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+Attrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedAttribField: string
+} @cuetsy(kind="interface")
+
+NoAttrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedNoAttribField: string
+}
+
+-- out/gen --
+
+export interface With extends dep.Attrib {
+}
+
+export interface Without {
+  ImportedInner: {
+    nestedval: string;
+  };
+  importedNoAttribField: string;
+}
+
+export interface LocalStruct {
+  localstructfield: string;
+}
+
+export type LocalScalar = string;
+
+export type UnionType = With | Without | LocalStruct | LocalScalar;
+
+export interface UnionInterface {
+  field: With | Without | LocalStruct | LocalScalar;
+}
