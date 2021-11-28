@@ -12,6 +12,8 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
+	"github.com/grafana/cuetsy/ts"
+	tsast "github.com/grafana/cuetsy/ts/ast"
 )
 
 const (
@@ -62,7 +64,15 @@ type Config struct {
 //
 // Members that are definitions, hidden fields, or optional fields are ignored.
 func Generate(val cue.Value, c Config) (b []byte, err error) {
-	if err = val.Validate(); err != nil {
+	file, err := GenerateAST(val, c)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(file.String()), nil
+}
+
+func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
+	if err := val.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -83,17 +93,23 @@ func Generate(val cue.Value, c Config) (b []byte, err error) {
 		return nil, err
 	}
 
+	var file ts.File
 	for iter.Next() {
-		g.decl(iter.Label(), iter.Value())
+		n := g.decl(iter.Label(), iter.Value())
+
+		// TODO: return errors instead?
+		if n == nil {
+			continue
+		}
+		file.Nodes = append(file.Nodes, n)
 	}
 
-	return g.w.Bytes(), g.err
+	return &file, g.err
 }
 
 type generator struct {
 	val *cue.Value
 	c   Config
-	w   bytes.Buffer
 	err errors.Error
 }
 
@@ -103,8 +119,13 @@ func (g *generator) addErr(err error) {
 	}
 }
 
-func (g *generator) exec(t *template.Template, data interface{}) {
-	g.addErr(t.Execute(&g.w, data))
+func exec(t *template.Template, data interface{}) (ts.Node, error) {
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return nil, err
+	}
+
+	return tsast.Raw{Data: buf.String()}, nil
 }
 
 func execGetString(t *template.Template, data interface{}) (string, error) {
@@ -116,9 +137,9 @@ func execGetString(t *template.Template, data interface{}) (string, error) {
 	return result, nil
 }
 
-func (g *generator) decl(name string, v cue.Value) {
+func (g *generator) decl(name string, v cue.Value) ts.Node {
 	if !gast.IsExported(name) {
-		return
+		return nil
 	}
 
 	// Value preparation:
@@ -143,24 +164,21 @@ func (g *generator) decl(name string, v cue.Value) {
 	tst, err := getKindFor(v)
 	if err != nil {
 		// Ignore values without attributes
-		return
+		return nil
 	}
 	switch tst {
 	case kindEnum:
-		g.genEnum(name, v)
-		return
+		return g.genEnum(name, v)
 	case kindInterface:
-		g.genInterface(name, v)
-		return
+		return g.genInterface(name, v)
 	case kindType:
-		g.genType(name, v)
-		return
+		return g.genType(name, v)
 	default:
-		return // TODO error out
+		return nil // TODO error out
 	}
 }
 
-func (g *generator) genType(name string, v cue.Value) {
+func (g *generator) genType(name string, v cue.Value) ts.Node {
 	tvars := map[string]interface{}{
 		"name":   name,
 		"export": true,
@@ -178,7 +196,7 @@ func (g *generator) genType(name string, v cue.Value) {
 			tok, err := tsprintField(dv, 0)
 			if err != nil {
 				g.addErr(err)
-				return
+				return nil
 			}
 			tokens = append(tokens, tok)
 		}
@@ -186,7 +204,7 @@ func (g *generator) genType(name string, v cue.Value) {
 		tok, err := tsprintField(v, 0)
 		if err != nil {
 			g.addErr(err)
-			return
+			return nil
 		}
 		tokens = append(tokens, tok)
 	default:
@@ -204,7 +222,11 @@ func (g *generator) genType(name string, v cue.Value) {
 
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
-	g.exec(typeCode, tvars)
+	n, err := exec(typeCode, tvars)
+	if err != nil {
+		g.addErr(err)
+	}
+	return n
 }
 
 type KV struct {
@@ -216,7 +238,7 @@ type KV struct {
 // - value disjunction (a | b | c): values are taken as attribut memberNames,
 //   if memberNames is absent, then keys implicitely generated as CamelCase
 // - string struct: struct keys get enum keys, struct values enum values
-func (g *generator) genEnum(name string, v cue.Value) {
+func (g *generator) genEnum(name string, v cue.Value) ts.Node {
 	var pairs []KV
 	var defaultValue string
 
@@ -243,7 +265,7 @@ func (g *generator) genEnum(name string, v cue.Value) {
 		}
 	default:
 		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings"))
-		return
+		return nil
 	}
 
 	sort.Slice(pairs, func(i, j int) bool {
@@ -262,7 +284,11 @@ func (g *generator) genEnum(name string, v cue.Value) {
 
 	// TODO comments
 	// TODO maturity marker (@alpha, etc.)
-	g.exec(enumCode, tvars)
+	n, err := exec(enumCode, tvars)
+	if err != nil {
+		g.addErr(err)
+	}
+	return n
 }
 
 func getDefaultValue(v cue.Value) (string, error) {
@@ -343,7 +369,7 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 	return pairs, nil
 }
 
-func (g *generator) genInterface(name string, v cue.Value) {
+func (g *generator) genInterface(name string, v cue.Value) ts.Node {
 	var pairs []KV
 	tvars := map[string]interface{}{
 		"name":    name,
@@ -356,7 +382,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	if v.IncompleteKind() != cue.StructKind {
 		// FIXME check for bottom here, give different error
 		g.addErr(valError(v, "typescript interfaces may only be generated from structs"))
-		return
+		return nil
 	}
 
 	// There are basic two paths to extracting what we treat as the body
@@ -457,7 +483,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 	if err := walkExpr(v); err != nil {
 		g.addErr(err)
-		return
+		return nil
 	}
 	tvars["extends"] = extends
 
@@ -465,7 +491,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	for iter != nil && iter.Next() {
 		if iter.Selector().PkgPath() != "" {
 			g.addErr(valError(iter.Value(), "cannot generate hidden fields; typescript has no corresponding concept"))
-			return
+			return nil
 		}
 
 		// Skip fields that are subsumed by the Value representing the
@@ -513,7 +539,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		vstr, err := tsprintField(iter.Value(), 0)
 		if err != nil {
 			g.addErr(err)
-			return
+			return nil
 		}
 
 		kv := KV{K: k, V: vstr}
@@ -530,7 +556,12 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
 	tvars["pairs"] = pairs
-	g.exec(interfaceCode, tvars)
+
+	n, err := exec(interfaceCode, tvars)
+	if err != nil {
+		g.addErr(err)
+	}
+	return n
 }
 
 func tsPrintDefault(v cue.Value) (bool, string, error) {
