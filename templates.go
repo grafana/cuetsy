@@ -60,8 +60,7 @@ var interfaceCode = tmpl("interface", `
 interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{end}} {
   {{- range .pairs}}
   {{.K}}: {{.V}};{{end}}
-}
-{{- if .defaults }}
+}{{- if .defaults }}
 
 {{if .export}}export {{end -}}
 const default{{.name}}: {{.name}} = {

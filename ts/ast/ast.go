@@ -14,10 +14,14 @@ type File struct {
 func (f File) String() string {
 	var b strings.Builder
 
-	for _, n := range f.Nodes {
+	for i, n := range f.Nodes {
 		b.WriteString(n.String())
-		b.WriteString("\n")
+
+		if i+1 < len(f.Nodes) {
+			b.WriteString("\n\n")
+		}
 	}
+	b.WriteString("\n")
 
 	return b.String()
 }
@@ -31,6 +35,11 @@ type Expr interface {
 	expr()
 }
 
+type Decl interface {
+	Node
+	decl()
+}
+
 var (
 	_ Expr = SelectorExpr{}
 	_ Expr = IndexExpr{}
@@ -41,6 +50,7 @@ type Raw struct {
 	Data string
 }
 
+func (r Raw) decl() {}
 func (r Raw) expr() {}
 func (r Raw) String() string {
 	return r.Data
@@ -109,6 +119,16 @@ func (u UnaryExpr) String() string {
 	return u.Op + u.Expr.String()
 }
 
+type BinaryExpr struct {
+	Op   string
+	X, Y Expr
+}
+
+func (b BinaryExpr) expr() {}
+func (b BinaryExpr) String() string {
+	return fmt.Sprintf("%s %s %s", b.X, b.Op, b.Y)
+}
+
 type Num struct {
 	N   interface{}
 	Fmt string
@@ -131,6 +151,40 @@ func (s Str) String() string {
 	return fmt.Sprintf(`'%s'`, s.Value)
 }
 
+type ObjectLit struct {
+	Elems []KeyValueExpr
+}
+
+func (o ObjectLit) expr() {}
+func (o ObjectLit) String() string {
+	var b strings.Builder
+	b.WriteString("{\n")
+	for _, e := range o.Elems {
+		b.WriteString(Indent)
+		b.WriteString(e.String())
+		b.WriteString(",\n")
+	}
+	b.WriteString("}")
+	return b.String()
+}
+
+type VarDecl struct {
+	Tok string
+
+	Name  Ident
+	Type  Ident
+	Value Expr
+}
+
+func (v VarDecl) decl() {}
+func (v VarDecl) String() string {
+	tok := v.Tok
+	if tok == "" {
+		tok = "const"
+	}
+	return fmt.Sprintf("%s %s: %s = %s;", tok, v.Name, v.Type, v.Value)
+}
+
 type Type interface {
 	Node
 	typeName() string
@@ -146,8 +200,18 @@ type TypeDecl struct {
 	Type Type
 }
 
+func (t TypeDecl) decl() {}
 func (t TypeDecl) String() string {
 	return fmt.Sprintf("%s %s %s", t.Type.typeName(), t.Name, t.Type)
+}
+
+type BasicType struct {
+	Expr Expr
+}
+
+func (b BasicType) typeName() string { return "type" }
+func (b BasicType) String() string {
+	return fmt.Sprintf("= %s;", b.Expr)
 }
 
 type EnumType struct {
@@ -171,18 +235,38 @@ func (e EnumType) String() string {
 }
 
 type InterfaceType struct {
-	Elems []KeyValueExpr
+	Elems   []KeyValueExpr
+	Extends []Ident
 }
 
 func (i InterfaceType) typeName() string { return "interface" }
 func (i InterfaceType) String() string {
 	var b strings.Builder
+	if len(i.Extends) > 0 {
+		b.WriteString("extends ")
+		for i, s := range i.Extends {
+			if i != 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(s.Name)
+		}
+		b.WriteString(" ")
+	}
+
 	b.WriteString("{\n")
 	for _, e := range i.Elems {
 		b.WriteString(Indent)
 		b.WriteString(e.String())
-		b.WriteString("\n")
+		b.WriteString(";\n")
 	}
 	b.WriteString("}")
 	return b.String()
+}
+
+type ExportStmt struct {
+	Decl Decl
+}
+
+func (e ExportStmt) String() string {
+	return "export " + e.Decl.String()
 }
