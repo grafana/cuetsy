@@ -1,11 +1,20 @@
 package ts
 
-import "github.com/grafana/cuetsy/ts/ast"
+import (
+	"fmt"
+	"runtime"
+
+	"github.com/grafana/cuetsy/ts/ast"
+)
 
 type (
 	File = ast.File
 	Node = ast.Node
 )
+
+func Ident(name string) ast.Ident {
+	return ast.Ident{Name: name}
+}
 
 func Union(elems ...ast.Expr) ast.Expr {
 	switch len(elems) {
@@ -25,4 +34,18 @@ func Union(elems ...ast.Expr) ast.Expr {
 	}
 
 	return U
+}
+
+func Export(decl ast.Decl) ast.Node {
+	return ast.ExportStmt{Decl: decl}
+}
+
+func Raw(data string) ast.Raw {
+	pc, file, no, ok := runtime.Caller(1)
+	details := runtime.FuncForPC(pc)
+	if ok && details != nil {
+		fmt.Printf("fix: ts.Raw used by %s at %s#%d\n", details.Name(), file, no)
+	}
+
+	return ast.Raw{Data: data}
 }

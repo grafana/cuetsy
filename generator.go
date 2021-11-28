@@ -179,7 +179,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Node {
 				g.addErr(err)
 				return nil
 			}
-			tokens = append(tokens, tsast.Ident{tok})
+			tokens = append(tokens, ts.Ident(tok))
 		}
 	case cue.NoOp:
 		tok, err := tsprintField(v, 0)
@@ -187,17 +187,17 @@ func (g *generator) genType(name string, v cue.Value) []ts.Node {
 			g.addErr(err)
 			return nil
 		}
-		tokens = append(tokens, tsast.Ident{tok})
+		tokens = append(tokens, ts.Ident(tok))
 	default:
 		g.addErr(valError(v, "typescript types may only be generated from a single value or disjunction of values"))
 	}
 
-	T := tsast.ExportStmt{
+	T := ts.Export(
 		tsast.TypeDecl{
-			Name: tsast.Ident{name},
-			Type: tsast.BasicType{ts.Union(tokens...)},
+			Name: ts.Ident(name),
+			Type: tsast.BasicType{Expr: ts.Union(tokens...)},
 		},
-	}
+	)
 
 	d, ok := v.Default()
 	if !ok {
@@ -207,13 +207,13 @@ func (g *generator) genType(name string, v cue.Value) []ts.Node {
 	dStr, err := tsprintField(d, 0)
 	g.addErr(err)
 
-	D := tsast.ExportStmt{
+	D := ts.Export(
 		tsast.VarDecl{
-			Name:  tsast.Ident{"default" + name},
-			Type:  tsast.Ident{name},
-			Value: tsast.Raw{dStr},
+			Name:  ts.Ident("default" + name),
+			Type:  ts.Ident(name),
+			Value: ts.Raw(dStr),
 		},
-	}
+	)
 
 	return []ts.Node{T, D}
 }
@@ -259,30 +259,30 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Node {
 	var exprs []tsast.Expr
 	for _, p := range pairs {
 		expr := tsast.AssignExpr{
-			Name:  tsast.Ident{p.K},
-			Value: tsast.Raw{p.V},
+			Name:  ts.Ident(p.K),
+			Value: ts.Raw(p.V),
 		}
 		exprs = append(exprs, expr)
 	}
 
-	T := tsast.ExportStmt{
+	T := ts.Export(
 		tsast.TypeDecl{
-			Name: tsast.Ident{name},
+			Name: ts.Ident(name),
 			Type: tsast.EnumType{Elems: exprs},
 		},
-	}
+	)
 
 	if defaultValue == "" {
 		return []ts.Node{T}
 	}
 
-	D := tsast.ExportStmt{
+	D := ts.Export(
 		tsast.VarDecl{
-			Name:  tsast.Ident{"default" + name},
-			Type:  tsast.Ident{name},
-			Value: tsast.SelectorExpr{Expr: tsast.Ident{name}, Sel: tsast.Ident{defaultValue}},
+			Name:  ts.Ident("default" + name),
+			Type:  ts.Ident(name),
+			Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: ts.Ident(defaultValue)},
 		},
-	}
+	)
 	return []ts.Node{T, D}
 }
 
@@ -446,7 +446,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 			// add the ref to the list of fields to exclude if subsumed.
 			if exstr != "" {
 				some = true
-				extends = append(extends, tsast.Ident{exstr})
+				extends = append(extends, ts.Ident(exstr))
 				nolit = nolit.Unify(cue.Dereference(wv))
 			}
 			return nil
@@ -532,8 +532,8 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 		}
 
 		elems = append(elems, tsast.KeyValueExpr{
-			Key:   tsast.Ident{k},
-			Value: tsast.Raw{vstr},
+			Key:   ts.Ident(k),
+			Value: ts.Raw(vstr),
 		})
 
 		exists, defaultV, err := tsPrintDefault(iter.Value())
@@ -544,9 +544,9 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 		}
 
 		defs = append(defs, tsast.KeyValueExpr{
-			Key:   tsast.Ident{strings.TrimSuffix(k, "?")},
-			Value: tsast.Raw{defaultV}},
-		)
+			Key:   ts.Ident(strings.TrimSuffix(k, "?")),
+			Value: ts.Raw(defaultV),
+		})
 	}
 
 	sort.Slice(elems, func(i, j int) bool {
@@ -556,27 +556,27 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 		return defs[i].Key.String() < defs[j].Key.String()
 	})
 
-	T := tsast.ExportStmt{
+	T := ts.Export(
 		tsast.TypeDecl{
-			Name: tsast.Ident{name},
+			Name: ts.Ident(name),
 			Type: tsast.InterfaceType{
 				Elems:   elems,
 				Extends: extends,
 			},
 		},
-	}
+	)
 
 	if len(defs) == 0 {
 		return []ts.Node{T}
 	}
 
-	D := tsast.ExportStmt{
+	D := ts.Export(
 		tsast.VarDecl{
-			Name:  tsast.Ident{"default" + name},
-			Type:  tsast.Ident{name},
+			Name:  ts.Ident("default" + name),
+			Type:  ts.Ident(name),
 			Value: tsast.ObjectLit{Elems: defs},
 		},
-	}
+	)
 
 	return []ts.Node{T, D}
 }
