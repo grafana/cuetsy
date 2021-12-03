@@ -12,6 +12,8 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
+	"github.com/grafana/cuetsy/ts"
+	tsast "github.com/grafana/cuetsy/ts/ast"
 )
 
 const (
@@ -62,7 +64,15 @@ type Config struct {
 //
 // Members that are definitions, hidden fields, or optional fields are ignored.
 func Generate(val cue.Value, c Config) (b []byte, err error) {
-	if err = val.Validate(); err != nil {
+	file, err := GenerateAST(val, c)
+	if err != nil {
+		return nil, err
+	}
+	return []byte("\n" + file.String()), nil
+}
+
+func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
+	if err := val.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -83,17 +93,18 @@ func Generate(val cue.Value, c Config) (b []byte, err error) {
 		return nil, err
 	}
 
+	var file ts.File
 	for iter.Next() {
-		g.decl(iter.Label(), iter.Value())
+		n := g.decl(iter.Label(), iter.Value())
+		file.Nodes = append(file.Nodes, n...)
 	}
 
-	return g.w.Bytes(), g.err
+	return &file, g.err
 }
 
 type generator struct {
 	val *cue.Value
 	c   Config
-	w   bytes.Buffer
 	err errors.Error
 }
 
@@ -101,10 +112,6 @@ func (g *generator) addErr(err error) {
 	if err != nil {
 		g.err = errors.Append(g.err, errors.Promote(err, "generate failed"))
 	}
-}
-
-func (g *generator) exec(t *template.Template, data interface{}) {
-	g.addErr(t.Execute(&g.w, data))
 }
 
 func execGetString(t *template.Template, data interface{}) (string, error) {
@@ -116,9 +123,9 @@ func execGetString(t *template.Template, data interface{}) (string, error) {
 	return result, nil
 }
 
-func (g *generator) decl(name string, v cue.Value) {
+func (g *generator) decl(name string, v cue.Value) []ts.Node {
 	if !gast.IsExported(name) {
-		return
+		return nil
 	}
 
 	// Value preparation:
@@ -143,30 +150,22 @@ func (g *generator) decl(name string, v cue.Value) {
 	tst, err := getKindFor(v)
 	if err != nil {
 		// Ignore values without attributes
-		return
+		return nil
 	}
 	switch tst {
 	case kindEnum:
-		g.genEnum(name, v)
-		return
+		return g.genEnum(name, v)
 	case kindInterface:
-		g.genInterface(name, v)
-		return
+		return g.genInterface(name, v)
 	case kindType:
-		g.genType(name, v)
-		return
+		return g.genType(name, v)
 	default:
-		return // TODO error out
+		return nil // TODO error out
 	}
 }
 
-func (g *generator) genType(name string, v cue.Value) {
-	tvars := map[string]interface{}{
-		"name":   name,
-		"export": true,
-	}
-
-	var tokens []string
+func (g *generator) genType(name string, v cue.Value) []ts.Node {
+	var tokens []tsast.Expr
 	// If there's an AndOp first, pass through it.
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -178,48 +177,56 @@ func (g *generator) genType(name string, v cue.Value) {
 			tok, err := tsprintField(dv, 0)
 			if err != nil {
 				g.addErr(err)
-				return
+				return nil
 			}
-			tokens = append(tokens, tok)
+			tokens = append(tokens, ts.Ident(tok))
 		}
 	case cue.NoOp:
 		tok, err := tsprintField(v, 0)
 		if err != nil {
 			g.addErr(err)
-			return
+			return nil
 		}
-		tokens = append(tokens, tok)
+		tokens = append(tokens, ts.Ident(tok))
 	default:
 		g.addErr(valError(v, "typescript types may only be generated from a single value or disjunction of values"))
 	}
 
-	tvars["tokens"] = tokens
+	T := ts.Export(
+		tsast.TypeDecl{
+			Name: ts.Ident(name),
+			Type: tsast.BasicType{Expr: ts.Union(tokens...)},
+		},
+	)
 
 	d, ok := v.Default()
-	if ok {
-		dStr, err := tsprintField(d, 0)
-		g.addErr(err)
-		tvars["default"] = dStr
+	if !ok {
+		return []ts.Node{T}
 	}
 
-	// TODO comments
-	// TODO maturity marker (@alpha, etc.)
-	g.exec(typeCode, tvars)
+	dStr, err := tsprintField(d, 0)
+	g.addErr(err)
+
+	D := ts.Export(
+		tsast.VarDecl{
+			Name:  ts.Ident("default" + name),
+			Type:  ts.Ident(name),
+			Value: ts.Raw(dStr),
+		},
+	)
+
+	return []ts.Node{T, D}
 }
 
 type KV struct {
-	K, V    string
-	Default string
+	K, V string
 }
 
 // genEnum turns the following cue values into typescript enums:
 // - value disjunction (a | b | c): values are taken as attribut memberNames,
 //   if memberNames is absent, then keys implicitely generated as CamelCase
 // - string struct: struct keys get enum keys, struct values enum values
-func (g *generator) genEnum(name string, v cue.Value) {
-	var pairs []KV
-	var defaultValue string
-
+func (g *generator) genEnum(name string, v cue.Value) []ts.Node {
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -230,39 +237,53 @@ func (g *generator) genEnum(name string, v cue.Value) {
 	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
 	allowed := cue.StringKind | cue.NumberKind | cue.NumberKind
 	ik := v.IncompleteKind()
-	switch {
-	case op == cue.OrOp && ik&allowed == ik:
-		orPairs, err := genOrEnum(v)
-		if err != nil {
-			g.addErr(err)
-		}
-		pairs = orPairs
-		defaultValue, err = getDefaultValue(v)
-		if err != nil {
-			g.addErr(err)
-		}
-	default:
+	if op != cue.OrOp || ik&allowed != ik {
 		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings"))
-		return
+		return nil
+	}
+
+	pairs, err := genOrEnum(v)
+	if err != nil {
+		g.addErr(err)
+	}
+
+	defaultValue, err := getDefaultValue(v)
+	if err != nil {
+		g.addErr(err)
 	}
 
 	sort.Slice(pairs, func(i, j int) bool {
 		return pairs[i].K < pairs[j].K
 	})
 
-	tvars := map[string]interface{}{
-		"name":   name,
-		"export": true,
-		"pairs":  pairs,
+	var exprs []tsast.Expr
+	for _, p := range pairs {
+		expr := tsast.AssignExpr{
+			Name:  ts.Ident(p.K),
+			Value: ts.Raw(p.V),
+		}
+		exprs = append(exprs, expr)
 	}
 
-	if defaultValue != "" {
-		tvars["default"] = defaultValue
+	T := ts.Export(
+		tsast.TypeDecl{
+			Name: ts.Ident(name),
+			Type: tsast.EnumType{Elems: exprs},
+		},
+	)
+
+	if defaultValue == "" {
+		return []ts.Node{T}
 	}
 
-	// TODO comments
-	// TODO maturity marker (@alpha, etc.)
-	g.exec(enumCode, tvars)
+	D := ts.Export(
+		tsast.VarDecl{
+			Name:  ts.Ident("default" + name),
+			Type:  ts.Ident(name),
+			Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: ts.Ident(defaultValue)},
+		},
+	)
+	return []ts.Node{T, D}
 }
 
 func getDefaultValue(v cue.Value) (string, error) {
@@ -343,20 +364,13 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 	return pairs, nil
 }
 
-func (g *generator) genInterface(name string, v cue.Value) {
-	var pairs []KV
-	tvars := map[string]interface{}{
-		"name":    name,
-		"export":  true,
-		"extends": []string{},
-	}
-
+func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 	// We restrict the derivation of Typescript interfaces to struct kinds.
 	// (More than just a struct literal match this, though.)
 	if v.IncompleteKind() != cue.StructKind {
 		// FIXME check for bottom here, give different error
 		g.addErr(valError(v, "typescript interfaces may only be generated from structs"))
-		return
+		return nil
 	}
 
 	// There are basic two paths to extracting what we treat as the body
@@ -396,7 +410,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 	// generated as literals.
 	nolit := v.Context().CompileString("{...}")
 
-	var extends []string
+	var extends []tsast.Ident
 	var some bool
 
 	// Recursively walk down Values returned from Expr() and separate
@@ -432,7 +446,7 @@ func (g *generator) genInterface(name string, v cue.Value) {
 			// add the ref to the list of fields to exclude if subsumed.
 			if exstr != "" {
 				some = true
-				extends = append(extends, exstr)
+				extends = append(extends, ts.Ident(exstr))
 				nolit = nolit.Unify(cue.Dereference(wv))
 			}
 			return nil
@@ -457,15 +471,16 @@ func (g *generator) genInterface(name string, v cue.Value) {
 
 	if err := walkExpr(v); err != nil {
 		g.addErr(err)
-		return
+		return nil
 	}
-	tvars["extends"] = extends
+	var elems []tsast.KeyValueExpr
+	var defs []tsast.KeyValueExpr
 
 	iter, _ := v.Fields(cue.Optional(true))
 	for iter != nil && iter.Next() {
 		if iter.Selector().PkgPath() != "" {
 			g.addErr(valError(iter.Value(), "cannot generate hidden fields; typescript has no corresponding concept"))
-			return
+			return nil
 		}
 
 		// Skip fields that are subsumed by the Value representing the
@@ -513,24 +528,57 @@ func (g *generator) genInterface(name string, v cue.Value) {
 		vstr, err := tsprintField(iter.Value(), 0)
 		if err != nil {
 			g.addErr(err)
-			return
+			return nil
 		}
 
-		kv := KV{K: k, V: vstr}
+		elems = append(elems, tsast.KeyValueExpr{
+			Key:   ts.Ident(k),
+			Value: ts.Raw(vstr),
+		})
 
 		exists, defaultV, err := tsPrintDefault(iter.Value())
 		g.addErr(err)
 
-		if exists {
-			tvars["defaults"] = true
-			kv.Default = defaultV
+		if !exists {
+			continue
 		}
-		pairs = append(pairs, kv)
+
+		defs = append(defs, tsast.KeyValueExpr{
+			Key:   ts.Ident(strings.TrimSuffix(k, "?")),
+			Value: ts.Raw(defaultV),
+		})
 	}
 
-	sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
-	tvars["pairs"] = pairs
-	g.exec(interfaceCode, tvars)
+	sort.Slice(elems, func(i, j int) bool {
+		return elems[i].Key.String() < elems[j].Key.String()
+	})
+	sort.Slice(defs, func(i, j int) bool {
+		return defs[i].Key.String() < defs[j].Key.String()
+	})
+
+	T := ts.Export(
+		tsast.TypeDecl{
+			Name: ts.Ident(name),
+			Type: tsast.InterfaceType{
+				Elems:   elems,
+				Extends: extends,
+			},
+		},
+	)
+
+	if len(defs) == 0 {
+		return []ts.Node{T}
+	}
+
+	D := ts.Export(
+		tsast.VarDecl{
+			Name:  ts.Ident("default" + name),
+			Type:  ts.Ident(name),
+			Value: tsast.ObjectLit{Elems: defs},
+		},
+	)
+
+	return []ts.Node{T, D}
 }
 
 func tsPrintDefault(v cue.Value) (bool, string, error) {

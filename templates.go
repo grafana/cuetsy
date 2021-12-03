@@ -21,8 +21,7 @@ type {{.name}} = {{ Join .tokens " | "}};
 {{- if .default }}
 
 {{if .export}}export {{end -}}
-const default{{.name}}: {{.name}} = {{.default}};{{end}}
-`)
+const default{{.name}}: {{.name}} = {{.default}};{{end}}`)
 
 // Generate a typescript enum declaration. Inputs:
 // .maturity	Optional. Maturity level, applied in doc comment
@@ -43,8 +42,7 @@ enum {{.name}} {
 {{- if .default }}
 
 {{if .export}}export {{end -}}
-const default{{.name}}: {{.name}} = {{.name}}.{{.default}};{{end}}
-`)
+const default{{.name}}: {{.name}} = {{.name}}.{{.default}};{{end}}`)
 
 // Generate a typescript interface declaration. Inputs:
 // .maturity	Optional. Maturity level, applied in doc comment
@@ -62,15 +60,13 @@ var interfaceCode = tmpl("interface", `
 interface {{.name}}{{if ne (len .extends) 0}} extends {{ Join .extends ", "}}{{end}} {
   {{- range .pairs}}
   {{.K}}: {{.V}};{{end}}
-}
-{{- if .defaults }}
+}{{- if .defaults }}
 
 {{if .export}}export {{end -}}
 const default{{.name}}: {{.name}} = {
   {{- range .pairs}}{{if .Default}}
   {{StripQ .K}}: {{.Default}},{{end}}{{end}}
-};{{end}}
-`)
+};{{end}}`)
 
 var nestedStructCode = tmpl("nestedstruct", `{
 {{- range .pairs}}
