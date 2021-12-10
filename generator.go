@@ -123,7 +123,7 @@ func execGetString(t *template.Template, data interface{}) (string, error) {
 	return result, nil
 }
 
-func (g *generator) decl(name string, v cue.Value) []ts.Node {
+func (g *generator) decl(name string, v cue.Value) []ts.Decl {
 	if !gast.IsExported(name) {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (g *generator) decl(name string, v cue.Value) []ts.Node {
 	}
 }
 
-func (g *generator) genType(name string, v cue.Value) []ts.Node {
+func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	var tokens []tsast.Expr
 	// If there's an AndOp first, pass through it.
 	op, dvals := v.Expr()
@@ -201,7 +201,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Node {
 
 	d, ok := v.Default()
 	if !ok {
-		return []ts.Node{T}
+		return []ts.Decl{T}
 	}
 
 	dStr, err := tsprintField(d, 0)
@@ -215,7 +215,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Node {
 		},
 	)
 
-	return []ts.Node{T, D}
+	return []ts.Decl{T, D}
 }
 
 type KV struct {
@@ -226,7 +226,7 @@ type KV struct {
 // - value disjunction (a | b | c): values are taken as attribut memberNames,
 //   if memberNames is absent, then keys implicitely generated as CamelCase
 // - string struct: struct keys get enum keys, struct values enum values
-func (g *generator) genEnum(name string, v cue.Value) []ts.Node {
+func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -273,7 +273,7 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Node {
 	)
 
 	if defaultValue == "" {
-		return []ts.Node{T}
+		return []ts.Decl{T}
 	}
 
 	D := ts.Export(
@@ -283,7 +283,7 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Node {
 			Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: ts.Ident(defaultValue)},
 		},
 	)
-	return []ts.Node{T, D}
+	return []ts.Decl{T, D}
 }
 
 func getDefaultValue(v cue.Value) (string, error) {
@@ -364,7 +364,7 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 	return pairs, nil
 }
 
-func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
+func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	// We restrict the derivation of Typescript interfaces to struct kinds.
 	// (More than just a struct literal match this, though.)
 	if v.IncompleteKind() != cue.StructKind {
@@ -567,7 +567,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 	)
 
 	if len(defs) == 0 {
-		return []ts.Node{T}
+		return []ts.Decl{T}
 	}
 
 	D := ts.Export(
@@ -578,7 +578,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Node {
 		},
 	)
 
-	return []ts.Node{T, D}
+	return []ts.Decl{T, D}
 }
 
 func tsPrintDefault(v cue.Value) (bool, string, error) {

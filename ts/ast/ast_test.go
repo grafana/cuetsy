@@ -7,21 +7,25 @@ import (
 	"github.com/matryer/is"
 )
 
+func ident(s string) ast.Ident {
+	return ast.Ident{Name: s}
+}
+
 func TestSelectorExpr(t *testing.T) {
 	is := is.New(t)
 
 	expr := ast.SelectorExpr{
-		Expr: ast.Ident{"foo"},
-		Sel:  ast.Ident{"bar"},
+		Expr: ident("foo"),
+		Sel:  ident("bar"),
 	}
 	is.Equal("foo.bar", expr.String())
 
 	expr = ast.SelectorExpr{
 		Expr: ast.SelectorExpr{
-			Expr: ast.Ident{"foo"},
-			Sel:  ast.Ident{"bar"},
+			Expr: ident("foo"),
+			Sel:  ident("bar"),
 		},
-		Sel: ast.Ident{"baz"},
+		Sel: ident("baz"),
 	}
 	is.Equal("foo.bar.baz", expr.String())
 }
@@ -30,7 +34,7 @@ func TestIndexExpr(t *testing.T) {
 	is := is.New(t)
 
 	expr := ast.IndexExpr{
-		Expr:  ast.Ident{"foo"},
+		Expr:  ident("foo"),
 		Index: ast.Num{N: 3},
 	}
 	is.Equal(expr.String(), "foo[3]")
@@ -52,7 +56,7 @@ func TestAssignExpr(t *testing.T) {
 	is := is.New(t)
 
 	expr := ast.AssignExpr{
-		Name:  ast.Ident{"foo"},
+		Name:  ident("foo"),
 		Value: ast.Num{N: 4},
 	}
 	is.Equal("foo = 4", expr.String())
@@ -62,14 +66,14 @@ func TestKeyValueExpr(t *testing.T) {
 	is := is.New(t)
 
 	expr := ast.KeyValueExpr{
-		Key:   ast.Ident{"foo"},
+		Key:   ident("foo"),
 		Value: ast.Str{"bar"},
 	}
 	is.Equal("foo: 'bar'", expr.String())
 
 	expr = ast.KeyValueExpr{
 		Key: ast.IndexExpr{
-			Expr:  ast.Ident{""},
+			Expr:  ident(""),
 			Index: ast.Str{"bar"},
 		},
 		Value: ast.Str{"baz"},
@@ -87,9 +91,9 @@ func TestEnumType(t *testing.T) {
 
 	T = ast.EnumType{
 		Elems: []ast.Expr{
-			ast.AssignExpr{Name: ast.Ident{"foo"}, Value: ast.Num{N: 1}},
-			ast.Ident{"bar"},
-			ast.Ident{"baz"},
+			ast.AssignExpr{Name: ident("foo"), Value: ast.Num{N: 1}},
+			ident("bar"),
+			ident("baz"),
 		},
 	}
 	want := `{
