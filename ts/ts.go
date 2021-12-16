@@ -10,6 +10,7 @@ import (
 type (
 	File = ast.File
 	Node = ast.Node
+	Decl = ast.Decl
 )
 
 func Ident(name string) ast.Ident {
@@ -36,7 +37,7 @@ func Union(elems ...ast.Expr) ast.Expr {
 	return U
 }
 
-func Export(decl ast.Decl) ast.Node {
+func Export(decl ast.Decl) ast.Decl {
 	return ast.ExportStmt{Decl: decl}
 }
 

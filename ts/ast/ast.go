@@ -7,12 +7,26 @@ import (
 
 const Indent = "  "
 
+type Brack string
+
+const (
+	RoundBrack  Brack = "()"
+	SquareBrack Brack = "[]"
+	CurlyBrack  Brack = "{}"
+)
+
 type File struct {
-	Nodes []Node
+	Imports []ImportSpec
+	Nodes   []Decl
 }
 
 func (f File) String() string {
 	var b strings.Builder
+
+	for _, i := range f.Imports {
+		b.WriteString(i.String())
+		b.WriteString("\n\n")
+	}
 
 	for i, n := range f.Nodes {
 		b.WriteString(n.String())
@@ -40,6 +54,16 @@ type Decl interface {
 	decl()
 }
 
+type Idents interface {
+	Node
+	ident()
+}
+
+var (
+	_ Idents = Ident{}
+	_ Idents = DestrLit{}
+)
+
 var (
 	_ Expr = SelectorExpr{}
 	_ Expr = IndexExpr{}
@@ -58,10 +82,15 @@ func (r Raw) String() string {
 
 type Ident struct {
 	Name string
+	As   string
 }
 
-func (i Ident) expr() {}
+func (i Ident) ident() {}
+func (i Ident) expr()  {}
 func (i Ident) String() string {
+	if i.As != "" {
+		return fmt.Sprintf("%s as %s", i.Name, i.As)
+	}
 	return i.Name
 }
 
@@ -151,27 +180,10 @@ func (s Str) String() string {
 	return fmt.Sprintf(`'%s'`, s.Value)
 }
 
-type ObjectLit struct {
-	Elems []KeyValueExpr
-}
-
-func (o ObjectLit) expr() {}
-func (o ObjectLit) String() string {
-	var b strings.Builder
-	b.WriteString("{\n")
-	for _, e := range o.Elems {
-		b.WriteString(Indent)
-		b.WriteString(e.String())
-		b.WriteString(",\n")
-	}
-	b.WriteString("}")
-	return b.String()
-}
-
 type VarDecl struct {
 	Tok string
 
-	Name  Ident
+	Name  Idents
 	Type  Ident
 	Value Expr
 }
@@ -267,6 +279,16 @@ type ExportStmt struct {
 	Decl Decl
 }
 
+func (e ExportStmt) decl() {}
 func (e ExportStmt) String() string {
 	return "export " + e.Decl.String()
+}
+
+type ImportSpec struct {
+	From  Str
+	Names Idents
+}
+
+func (i ImportSpec) String() string {
+	return fmt.Sprintf("import %s from %s;", i.Names, i.From)
 }
