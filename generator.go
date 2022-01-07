@@ -745,7 +745,7 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 				}
 				return elemstr + "[]", nil // TODO
 			}
-			return "x", nil
+			return "💩", nil
 		}
 	case cue.NumberKind, cue.StringKind:
 		// It appears there are only three cases in which we can have an
