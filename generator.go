@@ -3,7 +3,7 @@ package cuetsy
 import (
 	"bytes"
 	"fmt"
-	gast "go/ast"
+	"go/token"
 	"math/bits"
 	"sort"
 	"strings"
@@ -124,7 +124,7 @@ func execGetString(t *template.Template, data interface{}) (string, error) {
 }
 
 func (g *generator) decl(name string, v cue.Value) []ts.Decl {
-	if !gast.IsExported(name) {
+	if !token.IsExported(name) {
 		return nil
 	}
 
@@ -174,20 +174,20 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	switch op {
 	case cue.OrOp:
 		for _, dv := range dvals {
-			tok, err := tsprintField(dv, 0)
+			tok, err := tsprintField(dv)
 			if err != nil {
 				g.addErr(err)
 				return nil
 			}
-			tokens = append(tokens, ts.Ident(tok))
+			tokens = append(tokens, tok)
 		}
 	case cue.NoOp:
-		tok, err := tsprintField(v, 0)
+		tok, err := tsprintField(v)
 		if err != nil {
 			g.addErr(err)
 			return nil
 		}
-		tokens = append(tokens, ts.Ident(tok))
+		tokens = append(tokens, tok)
 	default:
 		g.addErr(valError(v, "typescript types may only be generated from a single value or disjunction of values"))
 	}
@@ -204,14 +204,14 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 		return []ts.Decl{T}
 	}
 
-	dStr, err := tsprintField(d, 0)
+	val, err := tsprintField(d)
 	g.addErr(err)
 
 	D := ts.Export(
 		tsast.VarDecl{
-			Name:  ts.Ident("default" + name),
+			Names: ts.Names("default" + name),
 			Type:  ts.Ident(name),
-			Value: ts.Raw(dStr),
+			Value: val,
 		},
 	)
 
@@ -242,27 +242,9 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 		return nil
 	}
 
-	pairs, err := genOrEnum(v)
+	exprs, err := orEnum(v)
 	if err != nil {
 		g.addErr(err)
-	}
-
-	defaultValue, err := getDefaultValue(v)
-	if err != nil {
-		g.addErr(err)
-	}
-
-	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i].K < pairs[j].K
-	})
-
-	var exprs []tsast.Expr
-	for _, p := range pairs {
-		expr := tsast.AssignExpr{
-			Name:  ts.Ident(p.K),
-			Value: ts.Raw(p.V),
-		}
-		exprs = append(exprs, expr)
 	}
 
 	T := ts.Export(
@@ -272,57 +254,58 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 		},
 	)
 
-	if defaultValue == "" {
+	defaultIdent, err := enumDefault(v)
+	if err != nil {
+		g.addErr(err)
+	}
+
+	if defaultIdent == nil {
 		return []ts.Decl{T}
 	}
 
 	D := ts.Export(
 		tsast.VarDecl{
-			Name:  ts.Ident("default" + name),
+			Names: ts.Names("default" + name),
 			Type:  ts.Ident(name),
-			Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: ts.Ident(defaultValue)},
+			Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: *defaultIdent},
 		},
 	)
 	return []ts.Decl{T, D}
 }
 
-func getDefaultValue(v cue.Value) (string, error) {
+func enumDefault(v cue.Value) (*tsast.Ident, error) {
 	def, ok := v.Default()
-	if ok {
-		if v.IncompleteKind() == cue.StringKind {
-			dStr, err := tsprintField(def, 0)
-			if err != nil {
-				return "", err
-			}
-			return strings.Title(strings.Trim(dStr, "'")), nil
-		} else {
-			// For Int, Float, Numeric we need to find the default value and its corresponding memberName value
-			var idx int
-			_, dvals := v.Expr()
-			a := v.Attribute(attrname)
-			var evals []string
-			if a.Err() == nil {
-				val, found, err := a.Lookup(0, attrEnumMembers)
-				if err == nil && found {
-					evals = strings.Split(val, "|")
-				}
-			}
-			for i, val := range dvals {
-				valLab, _ := val.Label()
-				defLab, _ := def.Label()
-				if valLab == defLab {
-					idx = i
-					return evals[idx], nil
-				}
-			}
-			// should never reach here tho
-			return "", valError(v, "something went wrong, not able to find memberName corresponding to the default")
+	if !ok {
+		return nil, def.Err()
+	}
+
+	if v.IncompleteKind() == cue.StringKind {
+		s, _ := def.String()
+		return &tsast.Ident{Name: strings.Title(s)}, nil
+	}
+
+	// For Int, Float, Numeric we need to find the default value and its corresponding memberName value
+	a := v.Attribute(attrname)
+	val, found, err := a.Lookup(0, attrEnumMembers)
+	if err != nil || !found {
+		panic(fmt.Sprintf("looking up memberNames: found=%t err=%s", found, err))
+	}
+	evals := strings.Split(val, "|")
+
+	_, dvals := v.Expr()
+	for i, val := range dvals {
+		valLab, _ := val.Label()
+		defLab, _ := def.Label()
+		if valLab == defLab {
+			return &tsast.Ident{Name: evals[i]}, nil
 		}
 	}
-	return "", def.Err()
+
+	// should never reach here tho
+	return nil, valError(v, "unable to find memberName corresponding to the default")
 }
 
-func genOrEnum(v cue.Value) ([]KV, error) {
+func orEnum(v cue.Value) ([]ts.Expr, error) {
 	_, dvals := v.Expr()
 	a := v.Attribute(attrname)
 
@@ -344,7 +327,7 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 		return nil, valError(v, "typescript numeric enums may only be generated from memberNames attribute")
 	}
 
-	var pairs []KV
+	var fields []ts.Expr
 	for idx, dv := range dvals {
 		var text string
 		if attrMemberNameExist {
@@ -357,11 +340,19 @@ func genOrEnum(v cue.Value) ([]KV, error) {
 			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings")
 		}
 
-		// Simple mapping of all enum values (which we are assuming are in
-		// lowerCamelCase) to corresponding CamelCase
-		pairs = append(pairs, KV{K: strings.Title(text), V: tsprintConcrete(dv)})
+		fields = append(fields, tsast.AssignExpr{
+			// Simple mapping of all enum values (which we are assuming are in
+			// lowerCamelCase) to corresponding CamelCase
+			Name:  ts.Ident(strings.Title(text)),
+			Value: tsprintConcrete(dv),
+		})
 	}
-	return pairs, nil
+
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].String() < fields[j].String()
+	})
+
+	return fields, nil
 }
 
 func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
@@ -410,7 +401,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	// generated as literals.
 	nolit := v.Context().CompileString("{...}")
 
-	var extends []tsast.Ident
+	var extends []ts.Expr
 	var some bool
 
 	// Recursively walk down Values returned from Expr() and separate
@@ -437,16 +428,16 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		case cue.OrOp:
 			return valError(wv, "typescript interfaces cannot be constructed from disjunctions")
 		case cue.SelectorOp:
-			exstr, err := referenceValueAs(wv, kindInterface)
+			expr, err := referenceValueAs(wv, kindInterface)
 			if err != nil {
 				return err
 			}
 
 			// If we have a string to add to the list of "extends", then also
 			// add the ref to the list of fields to exclude if subsumed.
-			if exstr != "" {
+			if expr != nil {
 				some = true
-				extends = append(extends, ts.Ident(exstr))
+				extends = append(extends, expr)
 				nolit = nolit.Unify(cue.Dereference(wv))
 			}
 			return nil
@@ -525,7 +516,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			k += "?"
 		}
 
-		vstr, err := tsprintField(iter.Value(), 0)
+		expr, err := tsprintField(iter.Value())
 		if err != nil {
 			g.addErr(err)
 			return nil
@@ -533,10 +524,10 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 
 		elems = append(elems, tsast.KeyValueExpr{
 			Key:   ts.Ident(k),
-			Value: ts.Raw(vstr),
+			Value: expr,
 		})
 
-		exists, defaultV, err := tsPrintDefault(iter.Value())
+		exists, defExpr, err := tsPrintDefault(iter.Value())
 		g.addErr(err)
 
 		if !exists {
@@ -545,7 +536,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 
 		defs = append(defs, tsast.KeyValueExpr{
 			Key:   ts.Ident(strings.TrimSuffix(k, "?")),
-			Value: ts.Raw(defaultV),
+			Value: defExpr,
 		})
 	}
 
@@ -572,7 +563,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 
 	D := ts.Export(
 		tsast.VarDecl{
-			Name:  ts.Ident("default" + name),
+			Names: ts.Names("default" + name),
 			Type:  ts.Ident(name),
 			Value: tsast.ObjectLit{Elems: defs},
 		},
@@ -581,14 +572,13 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	return []ts.Decl{T, D}
 }
 
-func tsPrintDefault(v cue.Value) (bool, string, error) {
-	var result string
+func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	d, ok := v.Default()
 	// [...number] results in [], which is a fake default, we need to correct it here.
 	if ok && d.Kind() == cue.ListKind {
 		len, err := d.Len().Int64()
 		if err != nil {
-			return false, "", err
+			return false, nil, err
 		}
 		var defaultExist bool
 		if len <= 0 {
@@ -611,46 +601,56 @@ func tsPrintDefault(v cue.Value) (bool, string, error) {
 	}
 
 	if ok {
-		dStr, err := tsprintField(d, 0)
+		expr, err := tsprintField(d)
 		if err != nil {
-			return false, result, err
+			return false, nil, err
 		}
-		result = dStr
+
 		if isReference(d) {
-			// FIXME this is just horrifingly coarse guessing, ugh we need an AST
-			parts := strings.Split(result, ".")
-			parts[len(parts)-1] = "default" + parts[len(parts)-1]
-			result = strings.Join(parts, ".")
+			switch t := expr.(type) {
+			case tsast.SelectorExpr:
+				t.Sel.Name = "default" + t.Sel.Name
+				expr = t
+			case tsast.Ident:
+				t.Name = "default" + t.Name
+				expr = t
+			default:
+				panic(fmt.Sprintf("unexpected type %T", expr))
+			}
 		}
-		return true, result, nil
+
+		return true, expr, nil
 	}
-	return false, result, nil
+	return false, nil, nil
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided
 // Value for placement in a single field, if possible.
-func tsprintField(v cue.Value, nestedLevel int) (string, error) {
+func tsprintField(v cue.Value) (ts.Expr, error) {
 	// Let the forceText attribute supersede everything.
 	if ft := getForceText(v); ft != "" {
-		return ft, nil
+		return ts.Raw(ft), nil
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	path, err := referenceValueAs(v)
+	ref, err := referenceValueAs(v)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if path != "" {
-		return path, nil
+	if ref != nil {
+		return ref, nil
 	}
 
 	verr := v.Validate(cue.Final())
 	if verr != nil {
-		return "", verr
+		return nil, verr
 	}
 
 	op, dvals := v.Expr()
 	// Eliminate concretes first, to make handling the others easier.
+
+	// Concrete values.
+	// Includes "foobar", 5, [1,2,3], etc. (literal values)
 	k := v.Kind()
 	switch k {
 	case cue.StructKind:
@@ -658,26 +658,20 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
 			iter, err := v.Fields()
 			if err != nil {
-				return "", valError(v, "something went wrong when generate nested structs")
+				return nil, valError(v, "something went wrong when generate nested structs")
 			}
 
-			var pairs []KV
+			elems := make(map[string]ts.Expr)
 			for iter.Next() {
-				ele, err := tsprintField(iter.Value(), nestedLevel+1)
+				expr, err := tsprintField(iter.Value())
 				if err != nil {
-					return "", valError(v, err.Error())
+					return nil, valError(v, err.Error())
 				}
-				pairs = append(pairs, KV{K: iter.Label(), V: ele})
-			}
-			result, err := execGetString(nestedStructCode, map[string]interface{}{
-				"pairs": pairs,
-				"level": make([]int, nestedLevel+1),
-			})
 
-			if err != nil {
-				return "", valError(v, err.Error())
+				elems[iter.Label()] = expr
 			}
-			return result, nil
+
+			return ts.Object(elems), nil
 		default:
 			panic(fmt.Sprintf("not expecting op type %d", op))
 		}
@@ -689,39 +683,41 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 		//
 		// For closed lists, we simply iterate over its component elements and
 		// print their typescript representation.
+
 		iter, _ := v.List()
-		var parts []string
+		var elems []ts.Expr
 		for iter.Next() {
-			part, err := tsprintField(iter.Value(), 0)
+			e, err := tsprintField(iter.Value())
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			parts = append(parts, part)
+			elems = append(elems, e)
 		}
-		return fmt.Sprintf("[%s]", strings.Join(parts, ", ")), nil
+		return ts.List(elems...), nil
 	case cue.StringKind, cue.BoolKind, cue.FloatKind, cue.IntKind:
 		return tsprintConcrete(v), nil
 	case cue.BytesKind:
-		return "", valError(v, "bytes have no equivalent in Typescript; use double-quotes (string) instead")
+		return nil, valError(v, "bytes have no equivalent in Typescript; use double-quotes (string) instead")
 	}
 
 	// Handler for disjunctions
-	disj := func(dvals []cue.Value) (string, error) {
-		parts := make([]string, 0, len(dvals))
+	disj := func(dvals []cue.Value) (ts.Expr, error) {
+		parts := make([]ts.Expr, 0, len(dvals))
 		for _, dv := range dvals {
-			p, err := tsprintField(dv, 0)
+			p, err := tsprintField(dv)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			parts = append(parts, p)
 		}
-		return strings.Join(parts, " | "), nil
+		return ts.Union(parts...), nil
 	}
 
+	// Others: disjunctions, etc.
 	ik := v.IncompleteKind()
 	switch ik {
 	case cue.BottomKind:
-		return "", valError(v, "bottom, unsatisfiable")
+		return nil, valError(v, "bottom, unsatisfiable")
 	case cue.ListKind:
 		// This list is open - its final element is ...<value> - and we can only
 		// meaningfully convert open lists to typescript if there are zero other
@@ -729,23 +725,24 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		has := e.Exists()
 		if has {
-			elemstr, err := tsprintField(e, 0)
+			expr, err := tsprintField(e)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			return elemstr + "[]", nil // TODO
+			return tsast.ListExpr{Expr: expr}, nil
 		} else {
 			// When it is a concrete list.
 			iter, _ := v.List()
 			if iter.Next() {
-				elemstr := tsprintType(iter.Value().Kind())
-				if elemstr == "" {
+				expr := tsprintType(iter.Value().Kind())
+				if expr == nil {
 					label, _ := v.Label()
-					return "", valError(v, "can't convert list element of %v to typescript", label)
+					return nil, valError(v, "can't convert list element of %v to typescript", label)
 				}
-				return elemstr + "[]", nil // TODO
+				return tsast.ListExpr{Expr: expr}, nil
 			}
-			return "💩", nil
+
+			panic("💩")
 		}
 	case cue.NumberKind, cue.StringKind:
 		// It appears there are only three cases in which we can have an
@@ -765,7 +762,7 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 		switch op {
 		case cue.NoOp, cue.OrOp, cue.AndOp:
 		default:
-			return "", valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
+			return nil, valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
 		}
 		fallthrough
 	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind:
@@ -793,49 +790,44 @@ func tsprintField(v cue.Value, nestedLevel int) (string, error) {
 		return disj(dvals)
 	}
 
-	return "", valError(v, "unrecognized kind %s", ik)
+	return nil, valError(v, "unrecognized kind %s", ik)
 }
 
 // ONLY call this function if it has been established that the provided Value is
 // Concrete.
-func tsprintConcrete(v cue.Value) string {
+func tsprintConcrete(v cue.Value) ts.Expr {
 	switch v.Kind() {
 	case cue.NullKind:
-		return "null"
+		return ts.Null()
 	case cue.StringKind:
 		s, _ := v.String()
-		if strings.Contains(s, "\n") {
-			return fmt.Sprintf("`%s`", s)
-		}
-		return fmt.Sprintf("'%s'", s)
+		return ts.Str(s)
 	case cue.FloatKind:
 		f, _ := v.Float64()
-		return fmt.Sprintf("%g", f)
+		return ts.Float(f)
 	case cue.NumberKind, cue.IntKind:
 		i, _ := v.Int64()
-		return fmt.Sprintf("%v", i)
+		return ts.Int(i)
 	case cue.BoolKind:
-		if b, _ := v.Bool(); b {
-			return "true"
-		}
-		return "false"
+		b, _ := v.Bool()
+		return ts.Bool(b)
 	default:
 		panic("unreachable")
 	}
 }
 
-func tsprintType(k cue.Kind) string {
+func tsprintType(k cue.Kind) ts.Expr {
 	switch k {
 	case cue.BoolKind:
-		return "boolean"
+		return ts.Ident("boolean")
 	case cue.StringKind:
-		return "string"
+		return ts.Ident("string")
 	case cue.NumberKind, cue.FloatKind, cue.IntKind:
-		return "number"
+		return ts.Ident("number")
 	case cue.TopKind:
-		return "any"
+		return ts.Ident("any")
 	default:
-		return ""
+		return nil
 	}
 }
 
@@ -931,10 +923,10 @@ func isReference(v cue.Value) bool {
 // attribute. The variadic parameter determines which kinds will be treated as
 // permissible. By default, all kinds are permitted.
 //
-// An empty string indicates a reference is not allowable, including the case
+// An nil expr indicates a reference is not allowable, including the case
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
-func referenceValueAs(v cue.Value, kinds ...tsKind) (string, error) {
+func referenceValueAs(v cue.Value, kinds ...tsKind) (ts.Expr, error) {
 	op, dvals := v.Expr()
 
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
@@ -945,7 +937,7 @@ func referenceValueAs(v cue.Value, kinds ...tsKind) (string, error) {
 
 	// References are primarily identified by their hallmark SelectorOp.
 	if op != cue.SelectorOp {
-		return "", nil
+		return nil, nil
 	}
 
 	// Have to do attribute checks on the referenced field itself, so deref
@@ -962,19 +954,29 @@ func referenceValueAs(v cue.Value, kinds ...tsKind) (string, error) {
 		// exported in cuelang.org/go/cue, so all we have for the
 		// parent case is hopium.)
 		if _, ok := dvals[1].Source().(*ast.Ident); ok && targetsKind(deref, kinds...) {
-			return dstr, nil
+			return ts.Ident(dstr), nil
 		}
 	case *ast.SelectorExpr:
+		// panic("case 2")
 		if targetsKind(deref, kinds...) {
-			return dstr, nil
+			return ts.Ident(dstr), nil
 		}
 	case *ast.Ident:
+		// panic("case 3")
 		if targetsKind(deref, kinds...) {
-			return fmt.Sprintf("%s.%s", dvals[0].Source(), dstr), nil
+			str, ok := dvals[0].Source().(fmt.Stringer)
+			if !ok {
+				panic("expected dvals[0].Source() to implement String()")
+			}
+
+			return tsast.SelectorExpr{
+				Expr: ts.Ident(str.String()),
+				Sel:  ts.Ident(dstr),
+			}, nil
 		}
 	default:
-		return "", valError(v, "unknown selector subject type %T, cannot translate", dvals[0].Source())
+		return nil, valError(v, "unknown selector subject type %T, cannot translate", dvals[0].Source())
 	}
 
-	return "", nil
+	return nil, nil
 }

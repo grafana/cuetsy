@@ -11,6 +11,10 @@ func ident(s string) ast.Ident {
 	return ast.Ident{Name: s}
 }
 
+func str(s string) ast.Str {
+	return ast.Str{Value: s}
+}
+
 func TestSelectorExpr(t *testing.T) {
 	is := is.New(t)
 
@@ -67,16 +71,16 @@ func TestKeyValueExpr(t *testing.T) {
 
 	expr := ast.KeyValueExpr{
 		Key:   ident("foo"),
-		Value: ast.Str{"bar"},
+		Value: str("bar"),
 	}
 	is.Equal("foo: 'bar'", expr.String())
 
 	expr = ast.KeyValueExpr{
 		Key: ast.IndexExpr{
 			Expr:  ident(""),
-			Index: ast.Str{"bar"},
+			Index: str("bar"),
 		},
-		Value: ast.Str{"baz"},
+		Value: str("baz"),
 	}
 	is.Equal("['bar']: 'baz'", expr.String())
 }
