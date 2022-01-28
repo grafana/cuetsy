@@ -15,6 +15,21 @@ const (
 	CurlyBrack  Brack = "{}"
 )
 
+type Quot string
+
+const (
+	SingleQuot Quot = `'`
+	DoubleQuot Quot = `"`
+	BTickQuot  Quot = "`"
+)
+
+type EOL string
+
+const (
+	EOLComma     EOL = `,`
+	EOLSemicolon EOL = `;`
+)
+
 type File struct {
 	Imports []ImportSpec
 	Nodes   []Decl
@@ -54,16 +69,6 @@ type Decl interface {
 	decl()
 }
 
-type Idents interface {
-	Node
-	ident()
-}
-
-var (
-	_ Idents = Ident{}
-	_ Idents = DestrLit{}
-)
-
 var (
 	_ Expr = SelectorExpr{}
 	_ Expr = IndexExpr{}
@@ -82,7 +87,9 @@ func (r Raw) String() string {
 
 type Ident struct {
 	Name string
-	As   string
+
+	// TODO: factor out into asStmt?
+	As string
 }
 
 func (i Ident) ident() {}
@@ -96,6 +103,37 @@ func (i Ident) String() string {
 
 func None() Expr {
 	return Ident{}
+}
+
+type Idents []Ident
+
+func (i Idents) Strings() []string {
+	strs := make([]string, len(i))
+	for i, id := range i {
+		strs[i] = id.Name
+	}
+	return strs
+}
+
+type Names struct {
+	Brack
+	Idents
+}
+
+func (n Names) String() string {
+	switch len(n.Idents) {
+	case 0:
+		panic("Names.Idents must not be empty")
+	case 1:
+		return n.Idents[0].String()
+	}
+
+	b := n.Brack
+	if b == "" {
+		b = CurlyBrack
+	}
+
+	return fmt.Sprintf("%c%s%c", b[0], strings.Join(n.Idents.Strings(), ","), b[1])
 }
 
 type SelectorExpr struct {
@@ -172,19 +210,29 @@ func (n Num) String() string {
 }
 
 type Str struct {
+	Quot
 	Value string
 }
 
 func (s Str) expr() {}
 func (s Str) String() string {
-	return fmt.Sprintf(`'%s'`, s.Value)
+	q := string(s.Quot)
+	if q == "" {
+		q = string(SingleQuot)
+
+		if strings.Contains(s.Value, "\n") {
+			q = string(BTickQuot)
+		}
+	}
+
+	return q + s.Value + q
 }
 
 type VarDecl struct {
 	Tok string
 
-	Name  Idents
-	Type  Ident
+	Names
+	Type  Expr
 	Value Expr
 }
 
@@ -194,7 +242,8 @@ func (v VarDecl) String() string {
 	if tok == "" {
 		tok = "const"
 	}
-	return fmt.Sprintf("%s %s: %s = %s;", tok, v.Name, v.Type, v.Value)
+
+	return fmt.Sprintf("%s %s: %s = %s;", tok, v.Names, v.Type, v.Value)
 }
 
 type Type interface {
@@ -205,6 +254,7 @@ type Type interface {
 var (
 	_ Type = EnumType{}
 	_ Type = InterfaceType{}
+	_ Type = BasicType{}
 )
 
 type TypeDecl struct {
@@ -248,7 +298,7 @@ func (e EnumType) String() string {
 
 type InterfaceType struct {
 	Elems   []KeyValueExpr
-	Extends []Ident
+	Extends []Expr
 }
 
 func (i InterfaceType) typeName() string { return "interface" }
@@ -260,18 +310,14 @@ func (i InterfaceType) String() string {
 			if i != 0 {
 				b.WriteString(", ")
 			}
-			b.WriteString(s.Name)
+			b.WriteString(s.String())
 		}
 		b.WriteString(" ")
 	}
 
-	b.WriteString("{\n")
-	for _, e := range i.Elems {
-		b.WriteString(Indent)
-		b.WriteString(e.String())
-		b.WriteString(";\n")
-	}
-	b.WriteString("}")
+	obj := ObjectLit{Elems: i.Elems, eol: EOLSemicolon}
+	b.WriteString(obj.String())
+
 	return b.String()
 }
 
@@ -284,9 +330,19 @@ func (e ExportStmt) String() string {
 	return "export " + e.Decl.String()
 }
 
+// ListExpr represents lists in type definitions, like string[].
+type ListExpr struct {
+	Expr
+}
+
+func (l ListExpr) expr() {}
+func (l ListExpr) String() string {
+	return l.Expr.String() + "[]"
+}
+
 type ImportSpec struct {
-	From  Str
-	Names Idents
+	From Str
+	Names
 }
 
 func (i ImportSpec) String() string {
