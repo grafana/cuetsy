@@ -661,17 +661,21 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 				return nil, valError(v, "something went wrong when generate nested structs")
 			}
 
-			elems := make(map[string]ts.Expr)
+			size, _ := v.Len().Int64()
+			kvs := make([]tsast.KeyValueExpr, 0, size)
 			for iter.Next() {
 				expr, err := tsprintField(iter.Value())
 				if err != nil {
 					return nil, valError(v, err.Error())
 				}
 
-				elems[iter.Label()] = expr
+				kvs = append(kvs, tsast.KeyValueExpr{
+					Key:   ts.Ident(iter.Label()),
+					Value: expr,
+				})
 			}
 
-			return ts.Object(elems), nil
+			return tsast.ObjectLit{Elems: kvs}, nil
 		default:
 			panic(fmt.Sprintf("not expecting op type %d", op))
 		}
