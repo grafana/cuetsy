@@ -984,3 +984,34 @@ func referenceValueAs(v cue.Value, kinds ...tsKind) (ts.Expr, error) {
 
 	return nil, nil
 }
+
+// appendSplit splits a cue.Value into the
+func appendSplit(a []cue.Value, splitBy cue.Op, v cue.Value) []cue.Value {
+	op, args := v.Expr()
+	// dedup elements.
+	k := 1
+outer:
+	for i := 1; i < len(args); i++ {
+		for j := 0; j < k; j++ {
+			if args[i].Subsume(args[j], cue.Raw()) == nil &&
+				args[j].Subsume(args[i], cue.Raw()) == nil {
+				continue outer
+			}
+		}
+		args[k] = args[i]
+		k++
+	}
+	args = args[:k]
+
+	if op == cue.NoOp && len(args) == 1 {
+		// TODO: this is to deal with default value removal. This may change
+		a = append(a, args...)
+	} else if op != splitBy {
+		a = append(a, v)
+	} else {
+		for _, v := range args {
+			a = appendSplit(a, splitBy, v)
+		}
+	}
+	return a
+}
