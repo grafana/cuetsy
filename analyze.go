@@ -5,6 +5,15 @@ import (
 	"cuelang.org/go/cue/format"
 )
 
+func isReference(v cue.Value) bool {
+	_, path := v.ReferencePath()
+	if len(path.Selectors()) > 0 {
+		return true
+	}
+
+	return false
+}
+
 func getKindFor(v cue.Value) (tsKind, error) {
 	// Direct lookup of attributes with Attribute() seems broken-ish, so do our
 	// own search as best we can, allowing ValueAttrs, which include both field

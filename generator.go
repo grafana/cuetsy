@@ -835,15 +835,6 @@ func tsprintType(k cue.Kind) ts.Expr {
 	}
 }
 
-func isReference(v cue.Value) bool {
-	_, path := v.ReferencePath()
-	if len(path.Selectors()) > 0 {
-		return true
-	}
-
-	return false
-}
-
 func valError(v cue.Value, format string, args ...interface{}) error {
 	s := v.Source()
 	if s == nil {
