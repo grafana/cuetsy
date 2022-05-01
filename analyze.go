@@ -1,9 +1,15 @@
 package cuetsy
 
 import (
+	"fmt"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
 )
+
+func tpv(v cue.Value) {
+	fmt.Println(exprTree(v))
+}
 
 func isReference(v cue.Value) bool {
 	_, path := v.ReferencePath()
