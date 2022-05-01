@@ -835,70 +835,12 @@ func tsprintType(k cue.Kind) ts.Expr {
 	}
 }
 
-func getKindFor(v cue.Value) (tsKind, error) {
-	// Direct lookup of attributes with Attribute() seems broken-ish, so do our
-	// own search as best we can, allowing ValueAttrs, which include both field
-	// and decl attributes.
-	// TODO write a unit test checking expected attribute output behavior to
-	// protect this brittleness against regressions due to language changes
-	var found bool
-	var attr cue.Attribute
-	for _, a := range v.Attributes(cue.ValueAttr) {
-		if a.Name() == attrname {
-			found = true
-			attr = a
-		}
-	}
-	if !found {
-		return "", valError(v, "value has no \"@%s\" attribute", attrname)
+func isReference(v cue.Value) bool {
+	_, path := v.ReferencePath()
+	if len(path.Selectors()) > 0 {
+		return true
 	}
 
-	tt, found, err := attr.Lookup(0, attrKind)
-	if err != nil {
-		return "", err
-	}
-
-	if !found {
-		return "", valError(v, "no value for the %q key in @%s attribute", attrKind, attrname)
-	}
-	return tsKind(tt), nil
-}
-
-func getForceText(v cue.Value) string {
-	var found bool
-	var attr cue.Attribute
-	for _, a := range v.Attributes(cue.ValueAttr) {
-		if a.Name() == attrname {
-			found = true
-			attr = a
-		}
-	}
-	if !found {
-		return ""
-	}
-
-	ft, found, err := attr.Lookup(0, attrForceText)
-	if err != nil || !found {
-		return ""
-	}
-
-	return ft
-}
-
-func targetsKind(v cue.Value, kinds ...tsKind) bool {
-	vkind, err := getKindFor(v)
-	if err != nil {
-		return false
-	}
-
-	if len(kinds) == 0 {
-		kinds = allKinds[:]
-	}
-	for _, knd := range kinds {
-		if vkind == knd {
-			return true
-		}
-	}
 	return false
 }
 
@@ -910,14 +852,52 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 	return errors.Newf(s.Pos(), format, args...)
 }
 
-// TODO remove this, it's absolutely not right
-func isReference(v cue.Value) bool {
-	_, path := v.ReferencePath()
-	if len(path.Selectors()) > 0 {
-		return true
+func refAsInterface(v cue.Value) (ts.Expr, error) {
+	// Bail out right away if the value isn't a reference
+	op, dvals := v.Expr()
+	if !isReference(v) || op != cue.SelectorOp {
+		return nil, fmt.Errorf("not a reference")
 	}
 
-	return false
+	// Have to do attribute checks on the referenced field itself, so deref
+	deref := cue.Dereference(v)
+	dstr, _ := dvals[1].String()
+
+	// FIXME It's horrifying, teasing out the type of selector kinds this way. *Horrifying*.
+	switch dvals[0].Source().(type) {
+	case nil:
+		// A nil subject means an unqualified selector (no "."
+		// literal).  This can only possibly be a reference to some
+		// sibling or parent of the top-level Value being generated.
+		// (We can't do cycle detection with the meager tools
+		// exported in cuelang.org/go/cue, so all we have for the
+		// parent case is hopium.)
+		if _, ok := dvals[1].Source().(*ast.Ident); ok && targetsKind(deref, kindInterface) {
+			return ts.Ident(dstr), nil
+		}
+	case *ast.SelectorExpr:
+		// panic("case 2")
+		if targetsKind(deref, kindInterface) {
+			return ts.Ident(dstr), nil
+		}
+	case *ast.Ident:
+		// panic("case 3")
+		if targetsKind(deref, kindInterface) {
+			str, ok := dvals[0].Source().(fmt.Stringer)
+			if !ok {
+				panic("expected dvals[0].Source() to implement String()")
+			}
+
+			return tsast.SelectorExpr{
+				Expr: ts.Ident(str.String()),
+				Sel:  ts.Ident(dstr),
+			}, nil
+		}
+	default:
+		return nil, valError(v, "unknown selector subject type %T, cannot translate", dvals[0].Source())
+	}
+
+	return nil, nil
 }
 
 // referenceValueAs returns the string that should be used to create a Typescript
@@ -983,35 +963,4 @@ func referenceValueAs(v cue.Value, kinds ...tsKind) (ts.Expr, error) {
 	}
 
 	return nil, nil
-}
-
-// appendSplit splits a cue.Value into the
-func appendSplit(a []cue.Value, splitBy cue.Op, v cue.Value) []cue.Value {
-	op, args := v.Expr()
-	// dedup elements.
-	k := 1
-outer:
-	for i := 1; i < len(args); i++ {
-		for j := 0; j < k; j++ {
-			if args[i].Subsume(args[j], cue.Raw()) == nil &&
-				args[j].Subsume(args[i], cue.Raw()) == nil {
-				continue outer
-			}
-		}
-		args[k] = args[i]
-		k++
-	}
-	args = args[:k]
-
-	if op == cue.NoOp && len(args) == 1 {
-		// TODO: this is to deal with default value removal. This may change
-		a = append(a, args...)
-	} else if op != splitBy {
-		a = append(a, v)
-	} else {
-		for _, v := range args {
-			a = appendSplit(a, splitBy, v)
-		}
-	}
-	return a
 }
