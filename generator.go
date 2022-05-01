@@ -633,12 +633,15 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	ref, err := referenceValueAs(v)
-	if err != nil {
-		return nil, err
-	}
-	if ref != nil {
-		return ref, nil
+	if containsCuetsyReference(v) {
+		ref, err := referenceValueAs(v)
+		if err != nil {
+			return nil, err
+		}
+		if ref != nil {
+			return ref, nil
+		}
+		return nil, valError(v, "failed to generate reference correctly")
 	}
 
 	verr := v.Validate(cue.Final())
@@ -902,22 +905,39 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
 func referenceValueAs(v cue.Value, kinds ...tsKind) (ts.Expr, error) {
-	op, dvals := v.Expr()
+	// Bail out right away if there's no reference anywhere in the value.
+	// if !containsReference(v) {
+	// 	return nil, nil
+	// }
+	// End goal: we want to render a reference appropriately in Typescript.
+	// If the top-level is a reference, then this is simple.
+	//
+	// If the top-level merely contains a reference, this is harder.
+	// - Let's start by only supporting that case when it's because there's a default.
 
-	// FIXME compensate for attribute-applying call to Unify() on incoming Value
-	if op == cue.AndOp {
+	// Calling Expr peels off all default paths.
+	op, dvals := v.Expr()
+	_ = op
+
+	if !isReference(v) {
+		_, has := v.Default()
+		if !has || !isReference(dvals[0]) {
+			return nil, valError(v, "references within complex logic are currently unsupported")
+		}
+
+		// This may break a bunch of things but let's see if it gives us a
+		// defensible baseline
 		v = dvals[0]
-		op, dvals = dvals[0].Expr()
+		op, dvals = v.Expr()
 	}
 
-	// References are primarily identified by their hallmark SelectorOp.
-	if op != cue.SelectorOp {
-		return nil, nil
+	var dstr string
+	if len(dvals) > 1 {
+		dstr, _ = dvals[1].String()
 	}
 
 	// Have to do attribute checks on the referenced field itself, so deref
 	deref := cue.Dereference(v)
-	dstr, _ := dvals[1].String()
 
 	// FIXME It's horrifying, teasing out the type of selector kinds this way. *Horrifying*.
 	switch dvals[0].Source().(type) {

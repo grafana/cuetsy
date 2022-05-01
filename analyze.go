@@ -246,7 +246,7 @@ func (li *listField) eq(oli *listField) bool {
 			return li.v.LookupPath(p).Equals(oli.v.LookupPath(p))
 		}
 
-		return li.anyType.Subsume(oli.anyType, cue.Schema()) == nil && oli.anyType.Subsume(li.anyType, cue.Schema()) == nil
+		return li.anyType.Subsume(oli.anyType, cue.Raw(), cue.Schema()) == nil && oli.anyType.Subsume(li.anyType, cue.Raw(), cue.Schema()) == nil
 	}
 
 	return false
