@@ -219,3 +219,65 @@ func dumpsyn(v cue.Value) (string, error) {
 	byt, err := format.Node(syn, format.Simplify(), format.TabIndent(true))
 	return string(byt), err
 }
+
+type listField struct {
+	v              cue.Value
+	isOpen         bool
+	divergentTypes bool
+	lenElems       int
+	anyType        cue.Value
+}
+
+func (li *listField) eq(oli *listField) bool {
+	if li.isOpen == oli.isOpen && li.divergentTypes == oli.divergentTypes && li.lenElems == oli.lenElems {
+		if !li.isOpen {
+			if li.lenElems == 0 {
+				return true
+			}
+			p := cue.MakePath(cue.Index(0))
+			// Sloppy, but enough to cover all but really complicated cases that
+			// are likely unsupportable anyway
+			return li.v.LookupPath(p).Equals(oli.v.LookupPath(p))
+		}
+
+		return li.anyType.Subsume(oli.anyType, cue.Schema()) == nil && oli.anyType.Subsume(li.anyType, cue.Schema()) == nil
+	}
+
+	return false
+}
+
+func analyzeList(v cue.Value) *listField {
+	ln := v.Len()
+	li := &listField{
+		v:      v,
+		isOpen: !ln.IsConcrete(),
+	}
+
+	iter, _ := v.List()
+	var first cue.Value
+	var nonempty bool
+	var ct int
+	if nonempty = iter.Next(); nonempty {
+		ct++
+		first = iter.Value()
+	}
+
+	for iter.Next() {
+		ct++
+		iv := iter.Value()
+		lerr, rerr := first.Subsume(iv, cue.Schema()), iv.Subsume(first, cue.Schema())
+		if lerr != nil || rerr != nil {
+			li.divergentTypes = true
+		}
+	}
+	li.lenElems = ct
+
+	if li.isOpen {
+		li.anyType = v.LookupPath(cue.MakePath(cue.AnyIndex))
+		lerr, rerr := first.Subsume(li.anyType, cue.Schema()), li.anyType.Subsume(first, cue.Schema())
+		if lerr != nil || rerr != nil {
+			li.divergentTypes = true
+		}
+	}
+	return li
+}
