@@ -7,8 +7,8 @@ import (
 	tsast "github.com/grafana/cuetsy/ts/ast"
 )
 
-func newRootBuilder(ctx *buildContext) *builder {
-	return &builder{ctx: ctx}
+func newTypeBuilder(ctx *buildContext) *typeBuilder {
+	return &typeBuilder{ctx: ctx}
 }
 
 func doit(conf NewConfig, inst *cue.Instance) (result []tsast.Decl, err error) {
@@ -44,7 +44,7 @@ func doit(conf NewConfig, inst *cue.Instance) (result []tsast.Decl, err error) {
 
 func (c *buildContext) build(name string, v cue.Value) *tsoutput {
 	// TODO should we let errors escape here? Maybe only unsupported-type ones?
-	return newRootBuilder(c).enterGen(nil, name, v)
+	return newTypeBuilder(c).enterGen(nil, name, v)
 }
 
 func (c *buildContext) makeRef(inst *cue.Instance, ref []string) string {
@@ -63,26 +63,26 @@ func (o outputs) Set(ref string, x *tsoutput) {
 	panic("TODO")
 }
 
-func (b *builder) enterGen(core *builder, name string, v cue.Value) *tsoutput {
+func (b *typeBuilder) enterGen(core *typeBuilder, name string, v cue.Value) *tsoutput {
 	oldPath := b.ctx.path
 	b.ctx.path = append(b.ctx.path, name)
 	defer func() { b.ctx.path = oldPath }()
 
 	// NOTE this buncha stuff here related to structural schema - can we skip?
-	// var c *builder
+	// var c *typeBuilder
 	// if core == nil && b.ctx.structural {
 	// 	c = newCoreBuilder(b.ctx)
 	// 	c.buildCore(v) // initialize core structure
 	// 	c.coreSchema()
 	// } else {
-	// 	c = newRootBuilder(b.ctx)
+	// 	c = newTypeBuilder(b.ctx)
 	// 	c.core = core
 	// }
 
 	return b.fill(v)
 }
 
-func (b *builder) fill(v cue.Value) *tsoutput {
+func (b *typeBuilder) fill(v cue.Value) *tsoutput {
 	if b.filled != nil {
 		return b.filled
 	}
@@ -95,14 +95,14 @@ func (b *builder) fill(v cue.Value) *tsoutput {
 	panic("TODO")
 }
 
-type typeFunc func(b *builder, a cue.Value)
+type typeFunc func(b *typeBuilder, a cue.Value)
 
-func (b *builder) value(v cue.Value, f typeFunc) (isRef bool) {
+func (b *typeBuilder) value(v cue.Value, f typeFunc) (isRef bool) {
 	// NOTE oapi does cycle detection bookkeeping here :sad:
 	panic("TODO")
 }
 
-func (b *builder) setTargetKind(v cue.Value) {
+func (b *typeBuilder) setTargetKind(v cue.Value) {
 	// TODO decide whether we mix kind information with reference information
 	b.tsk, _ = getKindFor(v)
 }

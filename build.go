@@ -3,6 +3,7 @@ package cuetsy
 import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
+	"github.com/grafana/cuetsy/ts"
 	tsast "github.com/grafana/cuetsy/ts/ast"
 )
 
@@ -53,26 +54,30 @@ type tsoutput struct {
 	defaul tsast.Decl
 }
 
-type builder struct {
-	ctx    *buildContext
-	typ    string
-	format string
+// typeBuilder holds the state of a single output type as the CUE inputs for
+// that type are introspected. The result of a finished build is Typescript AST.
+//
+// Each CUE field under consideration in the input corresponds is handled by
+// exactly one builder.
+type typeBuilder struct {
+	ctx *buildContext
+	typ string
 
-	// right type??
-	singleFields tsast.Decl
-	current      []tsast.Decl
+	valueParts []cue.Value
 
 	tsk  tsKind
 	kind cue.Kind
 
+	built  ts.Node
+	defalt ts.Node
+
 	filled *tsoutput
 	values []cue.Value
 	keys   []string
+}
 
-	// i think ?? these are all in reference to the subtrees openapi demands
-	core       *builder
-	properties map[string]*builder
-	items      *builder
+func (b *typeBuilder) isExportRoot() bool {
+	return b.tsk != ""
 }
 
 type externalType struct {
