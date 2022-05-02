@@ -305,6 +305,48 @@ func enumDefault(v cue.Value) (*tsast.Ident, error) {
 	return nil, valError(v, "unable to find memberName corresponding to the default")
 }
 
+// List the pairs of values and member names in an enum. Err if input is not an enum
+func enumPairs(v cue.Value) ([]enumPair, error) {
+	// TODO should validate here. Or really, this is just evidence of how building these needs its own types
+	op, dvals := v.Expr()
+	if !targetsKind(v, kindEnum) || op != cue.OrOp {
+		return nil, fmt.Errorf("not an enum: %v (%s)", v, v.Path())
+	}
+
+	a := v.Attribute(attrname)
+	val, found, err := a.Lookup(0, attrEnumMembers)
+	if err != nil {
+		panic(fmt.Sprintf("looking up memberNames: found=%t err=%s", found, err))
+	}
+
+	var evals []string
+	if found {
+		evals = strings.Split(val, "|")
+	} else if v.IncompleteKind() == cue.StringKind {
+		for _, part := range dvals {
+			s, _ := part.String()
+			evals = append(evals, strings.Title(s))
+		}
+	} else {
+		return nil, fmt.Errorf("must provide memberNames attribute for non-string enums")
+	}
+
+	var pairs []enumPair
+	for i, eval := range evals {
+		pairs = append(pairs, enumPair{
+			name: eval,
+			val:  dvals[i],
+		})
+	}
+
+	return pairs, nil
+}
+
+type enumPair struct {
+	name string
+	val  cue.Value
+}
+
 func orEnum(v cue.Value) ([]ts.Expr, error) {
 	_, dvals := v.Expr()
 	a := v.Attribute(attrname)
@@ -337,7 +379,7 @@ func orEnum(v cue.Value) ([]ts.Expr, error) {
 		}
 
 		if !dv.IsConcrete() {
-			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings")
+			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings or numbers")
 		}
 
 		fields = append(fields, tsast.AssignExpr{
@@ -428,7 +470,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		case cue.OrOp:
 			return valError(wv, "typescript interfaces cannot be constructed from disjunctions")
 		case cue.SelectorOp:
-			expr, err := referenceValueAs(wv, kindInterface)
+			expr, err := refAsInterface(wv)
 			if err != nil {
 				return err
 			}
@@ -516,28 +558,45 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			k += "?"
 		}
 
-		expr, err := tsprintField(iter.Value())
-		if err != nil {
-			g.addErr(err)
+		tref, err := g.genInterfaceField(iter.Value())
+		if err != nil || tref == nil {
 			return nil
 		}
 
 		elems = append(elems, tsast.KeyValueExpr{
 			Key:   ts.Ident(k),
-			Value: expr,
+			Value: tref.T,
 		})
 
-		exists, defExpr, err := tsPrintDefault(iter.Value())
-		g.addErr(err)
-
-		if !exists {
-			continue
+		if tref.D != nil {
+			defs = append(defs, tsast.KeyValueExpr{
+				Key:   ts.Ident(strings.TrimSuffix(k, "?")),
+				Value: tref.D,
+			})
 		}
 
-		defs = append(defs, tsast.KeyValueExpr{
-			Key:   ts.Ident(strings.TrimSuffix(k, "?")),
-			Value: defExpr,
-		})
+		// expr, err := tsprintField(iter.Value())
+		// if err != nil {
+		// 	g.addErr(err)
+		// 	return nil
+		// }
+		//
+		// elems = append(elems, tsast.KeyValueExpr{
+		// 	Key:   ts.Ident(k),
+		// 	Value: expr,
+		// })
+		//
+		// exists, defExpr, err := tsPrintDefault(iter.Value())
+		// g.addErr(err)
+		//
+		// if !exists {
+		// 	continue
+		// }
+		//
+		// defs = append(defs, tsast.KeyValueExpr{
+		// 	Key:   ts.Ident(strings.TrimSuffix(k, "?")),
+		// 	Value: defExpr,
+		// })
 	}
 
 	sort.Slice(elems, func(i, j int) bool {
@@ -570,6 +629,170 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	)
 
 	return []ts.Decl{T, D}
+}
+
+// Generate a typeRef for the cue.Value
+func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
+	tref := &typeRef{}
+	var err error
+
+	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
+	if !containsCuetsyReference(v) {
+		tref.T, err = tsprintField(v)
+		if err != nil {
+			g.addErr(valError(v, "could not generate field: %w", err))
+			return nil, err
+		}
+	} else {
+		// Check if we've got an enum reference at top depth or one down. If we do, it
+		// changes how we generate.
+		if containsPred(v, 1,
+			isReference,
+			func(v cue.Value) bool { return targetsKind(cue.Dereference(v), kindEnum) },
+		) {
+			return g.genEnumReference(v)
+		}
+
+		expr, err := tsprintField(v)
+		if err != nil {
+			g.addErr(err)
+			return nil, nil
+		}
+		tref.T = expr
+
+		// Deconstruct the field's expressions.
+		// conjuncts := appendSplit(nil, cue.AndOp, v)
+
+		// var expr ts.Expr
+		//
+		// for _, cv := range conjuncts {
+		// 	disjuncts := appendSplit(nil, cue.OrOp, cv)
+		// 	for i, dv := range disjuncts {
+		// 		if _, r := dv.Reference(); len(r) == 0 {
+		// 			disjuncts[i] = dv.Eval()
+		// 		}
+		// 	}
+		// 	switch len(disjuncts) {
+		// 	case 0:
+		// 		// conjunct eliminated - need more preprocessing to actually make this possible
+		// 		panic("TODO, unreachable")
+		// 	case 1:
+		// 		err := disjuncts[0].Err()
+		// 		if err != nil {
+		// 			g.addErr(valError(v, "invalid value"))
+		// 			return nil
+		// 		}
+		// 		expr, err = tsprintField(disjuncts[0])
+		// 		if err != nil {
+		// 			g.addErr(valError(v, "invalid value"))
+		// 			return nil
+		// 		}
+		// 	default:
+		// 		// TODO create disjunction handler
+		// 	}
+		// }
+	}
+
+	exists, defExpr, err := tsPrintDefault(v)
+	if exists {
+		tref.D = defExpr
+	}
+	if err != nil {
+		g.addErr(err)
+	}
+	return tref, err
+}
+
+// Generate a typeref for a value that refers to a field
+func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
+	conjuncts := appendSplit(nil, cue.AndOp, v)
+	if len(conjuncts) > 1 {
+		// For now, just don't allow conjuncts with enums anywhere in them.
+		ve := valError(v, "unifications containing references to enums are not currently supported")
+		g.addErr(ve)
+		return nil, ve
+	}
+	// Search the expr tree for the actual enum. This approach is uncomfortable
+	// without having the assurance that there aren't more than one possible match/a
+	// guarantee from the CUE API of a stable, deterministic search order, etc.
+	ev, referrer, has := findRefWithKind(v, kindEnum)
+	if !has {
+		ve := valError(v, "no enum attr")
+		g.addErr(ve)
+		return nil, fmt.Errorf("no enum attr in %s", v)
+	}
+
+	var defaultIdent *tsast.Ident
+	var err error
+	defv, hasdef := v.Default()
+	if hasdef {
+		if ev.Subsume(defv) != nil {
+			err = valError(v, "defaults applied to an enum must be members of that enum")
+			g.addErr(err)
+			return nil, err
+		}
+		pairs, err := enumPairs(ev)
+		if err != nil {
+			return nil, err
+		}
+		var found bool
+		for _, pair := range pairs {
+			if pair.val.Equals(defv) {
+				found = true
+				defaultIdent = &tsast.Ident{Name: pair.name}
+				break
+			}
+		}
+
+		if !found {
+			err = valError(v, "default value %s is not a member of the enum", defv)
+			g.addErr(err)
+			return nil, err
+		}
+	}
+
+	decls := g.genEnum("foo", ev)
+
+	ref := &typeRef{}
+	switch len(decls) {
+	case 0:
+		return nil, errors.New("not an enum")
+	case 1, 2:
+		ref.T, err = referenceValueAs(referrer)
+		if err != nil {
+			panic(err)
+		}
+		// op, args := referrer.Expr()
+		// selstr, _ := args[0].String()
+		// if op == cue.SelectorOp {
+		// 	exprstr, _ := args[1].String()
+		// 	ref.T = tsast.SelectorExpr{
+		// 		Sel:  ts.Ident(selstr),
+		// 		Expr: ts.Ident(exprstr),
+		// 	}
+		// } else {
+		// 	ref.T = ts.Ident(selstr)
+		// }
+
+		if hasdef {
+			ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
+		}
+	default:
+		ve := valError(v, "unsupported number of expression args")
+		g.addErr(ve)
+		return nil, ve
+	}
+
+	return ref, nil
+}
+
+// typeRef is a pair of expressions for referring to another type - the reference
+// to the type, and the default value for the referrer. The default value
+// may be the one provided by either the referent, or by the field doing the referring
+// (in the case of a superseding mark).
+type typeRef struct {
+	T ts.Expr
+	D ts.Expr
 }
 
 func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
