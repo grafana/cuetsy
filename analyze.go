@@ -8,7 +8,7 @@ import (
 )
 
 func tpv(v cue.Value) {
-	fmt.Println(exprTree(v))
+	fmt.Printf("%s:\n%s\n", v.Path(), exprTree(v))
 }
 
 func isReference(v cue.Value) bool {
@@ -149,12 +149,7 @@ func containsPred(v cue.Value, depth int, pl ...valuePredicate) bool {
 	if vpl.And(v) {
 		return true
 	}
-	// for _, v := range flatten(v) {
-	// 	if vpl.And(v) {
-	// 		return true
-	// 	}
-	// }
-	if depth != 0 {
+	if depth != -1 {
 		op, args := v.Expr()
 		_, has := v.Default()
 		if op != cue.NoOp || has {
@@ -169,11 +164,12 @@ func containsPred(v cue.Value, depth int, pl ...valuePredicate) bool {
 }
 
 func flatten(v cue.Value) []cue.Value {
-	var all []cue.Value
+	all := []cue.Value{v}
 
-	_, dvals := v.Expr()
-	all = append(all, dvals...)
-	if len(dvals) != 1 {
+	op, dvals := v.Expr()
+	defv, has := v.Default()
+	if !v.Equals(defv) && (op != cue.NoOp || has) {
+		all = append(all, dvals...)
 		for _, dv := range dvals {
 			all = append(all, flatten(dv)...)
 		}

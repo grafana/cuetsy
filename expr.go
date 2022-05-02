@@ -10,8 +10,10 @@ import (
 )
 
 type exprNode struct {
-	// The parent node. The contained cue.Value in that node returns this node
-	// (and possibly others) when its Expr() method is called.
+	// The parent node - backlink up the tree. The contained cue.Value in that node either:
+	//   - Returns this node (and possibly others) when its Expr() method is called.
+	//   - Is the return from calling Default() on the parent cue.Value
+	//   - Is the return from calling cue.Dereference() on the parent cue.Value
 	parent *exprNode
 	// The cue.Value representing this node.
 	self cue.Value
@@ -58,12 +60,14 @@ func exprTree(v cue.Value) *exprNode {
 
 	if dodefault {
 		n.dfault = exprTree(dv)
+		n.dfault.parent = n
 		n.dfault.isdefault = true
 	}
 
 	if len(path.Selectors()) > 0 {
 		n.ref = exprTree(cue.Dereference(v))
 		n.refpath = path
+		n.ref.parent = n
 		n.ref.isref = true
 	}
 
@@ -78,8 +82,27 @@ func exprTree(v cue.Value) *exprNode {
 	return n
 }
 
+func (n *exprNode) Walk(f func(x *exprNode) bool) {
+	if !f(n) {
+		return
+	}
+
+	if n.ref != nil {
+		n.ref.Walk(f)
+	}
+	for _, c := range n.children {
+		c.Walk(f)
+	}
+
+	if n.dfault != nil {
+		n.dfault.Walk(f)
+	}
+
+	return
+}
+
 func (n *exprNode) String() string {
-	tp := treeprint.NewWithRoot(n.kindStr())
+	tp := treeprint.NewWithRoot(n.printSelf())
 	n.treeprint(tp)
 	return tp.String()
 }
@@ -97,7 +120,7 @@ func (n *exprNode) treeprint(tp treeprint.Tree) {
 		b = tp
 		tp.SetMetaValue(n.opString())
 	} else {
-		b = tp.AddMetaBranch(n.opString(), n.kindStr())
+		b = tp.AddMetaBranch(n.opString(), n.printSelf())
 	}
 
 	for _, cn := range n.children {
