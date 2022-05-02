@@ -177,6 +177,24 @@ func flatten(v cue.Value) []cue.Value {
 	return all
 }
 
+func findRefWithKind(v cue.Value, kinds ...tsKind) (ref, referrer cue.Value, has bool) {
+	xt := exprTree(v)
+	xt.Walk(func(n *exprNode) bool {
+		// don't explore defaults paths
+		if n.isdefault {
+			return false
+		}
+
+		if !has && targetsKind(n.self, kinds...) {
+			ref = n.self
+			referrer = n.parent.self
+			has = true
+		}
+		return !has
+	})
+	return ref, referrer, has
+}
+
 // appendSplit splits a cue.Value into the
 func appendSplit(a []cue.Value, splitBy cue.Op, v cue.Value) []cue.Value {
 	op, args := v.Expr()
