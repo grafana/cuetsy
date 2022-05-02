@@ -48,8 +48,8 @@ export interface Ref {
 }
 
 export const defaultRef: Ref = {
-  dle: dep.defaultDepEnum,
-  dlen: dep.defaultDepEnumNumeric,
-  le: defaultEnum,
-  len: defaultEnumNumeric,
+  dle: dep.DepEnum.Baz,
+  dlen: dep.DepEnumNumeric.Foo,
+  le: Enum.Baz,
+  len: EnumNumeric.Foo,
 };
