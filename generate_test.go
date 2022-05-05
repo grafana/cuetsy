@@ -44,10 +44,8 @@ func TestGenerateWithImports(t *testing.T) {
 		Name:   "gen",
 		Update: *updateGolden,
 		ToDo: map[string]string{
-			"imports/empty_default":    "Various fixes needed to emit empty types and defaults correctly",
 			"imports/oneref_verbose":   "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
 			"imports/struct_shorthand": "Shorthand struct notation is currently unsupported, needs fixing",
-			"imports/compose_enums":    "Referencing an enum with a default needs to render the member name, not the string or number it corresponds to",
 		},
 	}
 
@@ -116,7 +114,7 @@ func loadCases(dir string) ([]Case, error) {
 		}
 
 		if len(a.Files) != 2 {
-			return nil, fmt.Errorf("Malformed test case '%s': Must contain exactly two files (CUE and TS/ERR), but has %d", file, len(a.Files))
+			return nil, fmt.Errorf("malformed test case '%s': Must contain exactly two files (CUE and TS/ERR), but has %d", file, len(a.Files))
 		}
 		name := strings.TrimSuffix(fi.Name(), ".txtar")
 		if strings.HasSuffix(name, "error") {

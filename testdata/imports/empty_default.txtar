@@ -11,6 +11,7 @@ EmptyList: [...int] | *[] @cuetsy(kind="type")
 Fields: {
   EmptyStruct: {...} | *{}
   EmptyList: [...int] | *[]
+  EmptyReverseOrderList: *[] | [...string]
 } @cuetsy(kind="interface")
 
 -- out/gen --
@@ -19,7 +20,7 @@ export interface IEmptyStruct {
 }
 
 export type TEmptyStruct = {
-  };
+};
 
 export type EmptyList = number[];
 
@@ -27,6 +28,12 @@ export const defaultEmptyList: EmptyList = [];
 
 export interface Fields {
   EmptyList: number[];
+  EmptyReverseOrderList: string[];
   EmptyStruct: {
   };
 }
+
+export const defaultFields: Fields = {
+  EmptyList: [],
+  EmptyReverseOrderList: [],
+};

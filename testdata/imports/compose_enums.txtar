@@ -14,12 +14,16 @@ LocalEnumNumericD: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 Compose: {
     localstr: LocalEnum | *"baz"
     localstrd: LocalEnumD
+    localstrover: LocalEnumD | *"baz"
     localnum: LocalEnumNumeric | *2
     localnumd: LocalEnumNumericD
+    localnumover: LocalEnumNumericD | *2
     impstr: dep.DepEnum | *"bar"
     impstrd: dep.DepEnumD
+    impstrover: dep.DepEnumD | *"bar"
     impnum: dep.DepEnumNumeric | *3
     impnumd: dep.DepEnumNumericD
+    impnumover: dep.DepEnumNumericD | *3
 } @cuetsy(kind="interface")
 
 -- dep/file.cue --
@@ -31,6 +35,7 @@ DepEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 DepEnumNumericD: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 
 -- out/gen --
+
 export enum LocalEnum {
   Bar = 'bar',
   Baz = 'baz',
@@ -43,40 +48,48 @@ export enum LocalEnumD {
   Foo = 'foo',
 }
 
-export const defaultLocalEnumD: LocalEnumD = LocalEnumD.Foo
+export const defaultLocalEnumD: LocalEnumD = LocalEnumD.Foo;
 
 export enum LocalEnumNumeric {
-  Two = 2,
   One = 1,
   Three = 3,
+  Two = 2,
 }
 
 export enum LocalEnumNumericD {
-  Two = 2,
   One = 1,
   Three = 3,
+  Two = 2,
 }
 
-export const defaultLocalEnumNumericD: LocalEnumNumericD = LocalEnumNumericD.One
+export const defaultLocalEnumNumericD: LocalEnumNumericD = LocalEnumNumericD.One;
 
 export interface Compose {
-  impnum: dep.DepEnumNumeric
-  impnumd: dep.DepEnumNumericD
-  impstr: dep.DepEnum
-  impstrd: dep.DepEnumD
-  localnum: LocalEnumNumeric
-  localnumd: LocalEnumNumericD
-  localstr: LocalEnum
-  localstrd: LocalEnumD
+  impnum: dep.DepEnumNumeric;
+  impnumd: dep.DepEnumNumericD;
+  impnumover: dep.DepEnumNumericD;
+  impstr: dep.DepEnum;
+  impstrd: dep.DepEnumD;
+  impstrover: dep.DepEnumD;
+  localnum: LocalEnumNumeric;
+  localnumd: LocalEnumNumericD;
+  localnumover: LocalEnumNumericD;
+  localstr: LocalEnum;
+  localstrd: LocalEnumD;
+  localstrover: LocalEnumD;
 }
 
-export const defaultCompose: Compose {
-  impnum: dep.DepEnumNumeric.Two
-  impnumd: dep.DepEnumNumericD.One
-  impstr: dep.DepEnum.Bar
-  impstrd: dep.DepEnum.Foo
-  localnum: LocalEnumNumeric.Two
-  localnumd: LocalEnumNumeric.One
-  localstr: LocalEnum.Baz
-  localstrd: LocalEnum.Foo
-}
+export const defaultCompose: Compose = {
+  impnum: dep.DepEnumNumeric.Three,
+  impnumd: dep.DepEnumNumericD.One,
+  impnumover: dep.DepEnumNumericD.Three,
+  impstr: dep.DepEnum.Bar,
+  impstrd: dep.DepEnumD.Foo,
+  impstrover: dep.DepEnumD.Bar,
+  localnum: LocalEnumNumeric.Two,
+  localnumd: LocalEnumNumericD.One,
+  localnumover: LocalEnumNumericD.Two,
+  localstr: LocalEnum.Baz,
+  localstrd: LocalEnumD.Foo,
+  localstrover: LocalEnumD.Baz,
+};
