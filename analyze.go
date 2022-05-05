@@ -1,6 +1,7 @@
 package cuetsy
 
 import (
+	"bytes"
 	"fmt"
 
 	"cuelang.org/go/cue"
@@ -240,17 +241,35 @@ func dumpsyn(v cue.Value) (string, error) {
 	return string(byt), err
 }
 
+func dumpsynP(v cue.Value) string {
+	str, err := dumpsyn(v)
+	if err != nil {
+		panic(err)
+	}
+	return str
+}
+
+type listProps struct {
+	isOpen           bool
+	divergentTypes   bool
+	noDefault        bool
+	differentDefault bool
+	emptyDefault     bool
+	bottomKinded     bool
+	argBottomKinded  bool
+}
+
 type listField struct {
-	v              cue.Value
-	isOpen         bool
-	divergentTypes bool
-	lenElems       int
-	anyType        cue.Value
+	v        cue.Value
+	lenElems int
+	anyType  cue.Value
+	defv     cue.Value
+	props    listProps
 }
 
 func (li *listField) eq(oli *listField) bool {
-	if li.isOpen == oli.isOpen && li.divergentTypes == oli.divergentTypes && li.lenElems == oli.lenElems {
-		if !li.isOpen {
+	if li.props.isOpen == oli.props.isOpen && li.props.divergentTypes == oli.props.divergentTypes && li.lenElems == oli.lenElems {
+		if !li.props.isOpen {
 			if li.lenElems == 0 {
 				return true
 			}
@@ -266,38 +285,122 @@ func (li *listField) eq(oli *listField) bool {
 	return false
 }
 
-func analyzeList(v cue.Value) *listField {
-	ln := v.Len()
+// analyzeList extracts useful characteristics of pure lists (i.e. no disjuncts
+// with other kinds) into shorthand. The analysis walks down logic structures,
+// but does NOT traverse references.
+//
+// The return value is a slice of listFields. An empty slice indicates the
+// input was not a list. If the kind is mixed (i.e. disjunct over soem list and
+// non-list types), this peels out
+func analyzeList(v cue.Value) []*listField {
+	// Start by checking incomplete kind and expr. We can bail early if there's no
+	// ListKind at all. The recursion in this function relies on that behavior.
+	ik := v.IncompleteKind()
+	if ik&cue.ListKind != cue.ListKind {
+		return nil
+	}
+
 	li := &listField{
-		v:      v,
-		isOpen: !ln.IsConcrete(),
+		v: v,
+	}
+	all := []*listField{li}
+
+	// There's at least _some_ non-empty lists in the value. Next, tease out
+	// expressions and defaults.
+	op, args := v.Expr()
+	switch op {
+	case cue.NoOp:
+		// This branch hits whether there's an explicit default or not. e.g.,
+		// - `[...string] | *[]`
+		// - `[...string]`
+
+		// Open lists are guaranteed to have a default: the empty list. And the default of
+		// the empty list is itself (the empty list), recursively. This is annoying,
+		// even if reasonable.
+		defv, has := v.Default()
+		li.props.noDefault = !has
+		if has {
+			li.props.differentDefault = !v.Equals(defv)
+			li.props.emptyDefault = v.Context().NewList().Equals(defv)
+		}
+
+		li.props.bottomKinded = v.Kind() == cue.BottomKind
+
+		li.props.isOpen = v.Allows(cue.AnyIndex)
+		// li.props.isOpen = !v.IsClosed()
+		v = args[0]
+		li.props.argBottomKinded = v.Kind() == cue.BottomKind
+
+		// if !li.props.differentDefault && li.props.emptyDefault {
+		// 	// Input v is `[] | *[]`. Bail out to avoid infinite recursion.
+		// 	break
+		// }
+
+		iter, _ := v.List()
+		var first cue.Value
+		var nonempty bool
+		var ct int
+		if nonempty = iter.Next(); nonempty {
+			ct++
+			first = iter.Value()
+		}
+
+		for iter.Next() {
+			ct++
+			iv := iter.Value()
+			lerr, rerr := first.Subsume(iv, cue.Schema()), iv.Subsume(first, cue.Schema())
+			if lerr != nil || rerr != nil {
+				li.props.divergentTypes = true
+			}
+		}
+		li.lenElems = ct
+
+		if li.props.isOpen && nonempty {
+			li.anyType = v.LookupPath(cue.MakePath(cue.AnyIndex))
+			lerr, rerr := first.Subsume(li.anyType, cue.Schema()), li.anyType.Subsume(first, cue.Schema())
+			if lerr != nil || rerr != nil {
+				li.props.divergentTypes = true
+			}
+		}
+	case cue.AndOp, cue.OrOp:
+		// not sure this is a good idea but whatever
+		for _, arg := range args {
+			all = append(all, analyzeList(arg)...)
+		}
+	default:
+		panic("wat")
 	}
 
-	iter, _ := v.List()
-	var first cue.Value
-	var nonempty bool
-	var ct int
-	if nonempty = iter.Next(); nonempty {
-		ct++
-		first = iter.Value()
-	}
+	return all
+}
 
-	for iter.Next() {
-		ct++
-		iv := iter.Value()
-		lerr, rerr := first.Subsume(iv, cue.Schema()), iv.Subsume(first, cue.Schema())
-		if lerr != nil || rerr != nil {
-			li.divergentTypes = true
+type listpred func(props listProps) bool
+
+func groupBy(lfs []*listField, f listpred) (has, not []*listField) {
+	for _, lf := range lfs {
+		if f(lf.props) {
+			has = append(has, lf)
+		} else {
+			not = append(not, lf)
 		}
 	}
-	li.lenElems = ct
+	return
+}
 
-	if li.isOpen {
-		li.anyType = v.LookupPath(cue.MakePath(cue.AnyIndex))
-		lerr, rerr := first.Subsume(li.anyType, cue.Schema()), li.anyType.Subsume(first, cue.Schema())
-		if lerr != nil || rerr != nil {
-			li.divergentTypes = true
-		}
+func (l *listField) String() string {
+	var buf bytes.Buffer
+	synstr, err := dumpsyn(l.v)
+	if err != nil {
+		synstr = l.v.Path().String()
 	}
-	return li
+	fmt.Fprintf(&buf, "`%s`:\n", synstr)
+	fmt.Fprintf(&buf, "\tisOpen: %v\n", l.props.isOpen)
+	fmt.Fprintf(&buf, "\tdivergentTypes: %v\n", l.props.divergentTypes)
+	fmt.Fprintf(&buf, "\tnoDefault: %v\n", l.props.noDefault)
+	fmt.Fprintf(&buf, "\temptyDefault: %v\n", l.props.emptyDefault)
+	fmt.Fprintf(&buf, "\tdifferentDefault: %v\n", l.props.differentDefault)
+	fmt.Fprintf(&buf, "\tbottomKinded: %v\n", l.props.bottomKinded)
+	fmt.Fprintf(&buf, "\targBottomKinded: %v\n", l.props.argBottomKinded)
+
+	return buf.String()
 }
