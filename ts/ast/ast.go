@@ -196,6 +196,16 @@ func (b BinaryExpr) String() string {
 	return fmt.Sprintf("%s %s %s", b.X, b.Op, b.Y)
 }
 
+type TypeTransformExpr struct {
+	Transform string // e.g. "Partial"
+	Expr      Expr
+}
+
+func (tt TypeTransformExpr) expr() {}
+func (tt TypeTransformExpr) String() string {
+	return fmt.Sprintf("%s<%s>", tt.Transform, tt.Expr)
+}
+
 type Num struct {
 	N   interface{}
 	Fmt string

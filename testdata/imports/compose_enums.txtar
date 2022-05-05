@@ -79,7 +79,7 @@ export interface Compose {
   localstrover: LocalEnumD;
 }
 
-export const defaultCompose: Compose = {
+export const defaultCompose: Partial<Compose> = {
   impnum: dep.DepEnumNumeric.Three,
   impnumd: dep.DepEnumNumericD.One,
   impnumover: dep.DepEnumNumericD.Three,

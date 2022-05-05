@@ -33,7 +33,7 @@ export interface Fields {
   };
 }
 
-export const defaultFields: Fields = {
+export const defaultFields: Partial<Fields> = {
   EmptyList: [],
   EmptyReverseOrderList: [],
 };

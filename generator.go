@@ -207,13 +207,20 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	val, err := tsprintField(d)
 	g.addErr(err)
 
-	D := ts.Export(
-		tsast.VarDecl{
-			Names: ts.Names("default" + name),
-			Type:  ts.Ident(name),
-			Value: val,
-		},
-	)
+	def := tsast.VarDecl{
+		Names: ts.Names("default" + name),
+		Type:  ts.Ident(name),
+		Value: val,
+	}
+
+	D := ts.Export(def)
+	// Making lists into partials changes the member type - never what we want
+	if v.IncompleteKind() != cue.ListKind {
+		def.Type = tsast.TypeTransformExpr{
+			Transform: "Partial",
+			Expr:      def.Type,
+		}
+	}
 
 	return []ts.Decl{T, D}
 }
@@ -623,7 +630,10 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	D := ts.Export(
 		tsast.VarDecl{
 			Names: ts.Names("default" + name),
-			Type:  ts.Ident(name),
+			Type: tsast.TypeTransformExpr{
+				Transform: "Partial",
+				Expr:      ts.Ident(name),
+			},
 			Value: tsast.ObjectLit{Elems: defs},
 		},
 	)

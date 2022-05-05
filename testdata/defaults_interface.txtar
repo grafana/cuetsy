@@ -43,7 +43,7 @@ export interface Foo {
   I2_TypedList: ATypedList;
 }
 
-export const defaultFoo: Foo = {
+export const defaultFoo: Partial<Foo> = {
   Bar: 'ohai',
   Baz: 4,
   C: defaultAType,
@@ -59,6 +59,6 @@ export interface NestedFoo {
   };
 }
 
-export const defaultNestedFoo: NestedFoo = {
+export const defaultNestedFoo: Partial<NestedFoo> = {
   Bar: 'ohai',
 };

@@ -65,7 +65,7 @@ export interface I2 {
   I2_TypedList: number[];
 }
 
-export const defaultI2: I2 = {
+export const defaultI2: Partial<I2> = {
   I2_TypedList: [],
 };
 

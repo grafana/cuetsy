@@ -47,7 +47,7 @@ export interface Ref {
   len: EnumNumeric;
 }
 
-export const defaultRef: Ref = {
+export const defaultRef: Partial<Ref> = {
   dle: dep.DepEnum.Baz,
   dlen: dep.DepEnumNumeric.Foo,
   le: Enum.Baz,
