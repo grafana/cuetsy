@@ -28,13 +28,12 @@ export const defaultEmptyList: EmptyList = [];
 
 export interface Fields {
   EmptyList: number[];
-  EmptyReverseOrderList: number[];
+  EmptyReverseOrderList: string[];
   EmptyStruct: {
   };
 }
 
 export const defaultFields: Fields = {
   EmptyList: [],
-  EmptyReverseOrderList: [];
-  EmptyStruct: {},
-}
+  EmptyReverseOrderList: [],
+};

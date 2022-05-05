@@ -798,30 +798,30 @@ type typeRef struct {
 func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	d, ok := v.Default()
 	// [...number] results in [], which is a fake default, we need to correct it here.
-	if ok && d.Kind() == cue.ListKind {
-		len, err := d.Len().Int64()
-		if err != nil {
-			return false, nil, err
-		}
-		var defaultExist bool
-		if len <= 0 {
-			op, vals := v.Expr()
-			if op == cue.OrOp {
-				for _, val := range vals {
-					vallen, _ := d.Len().Int64()
-					if val.Kind() == cue.ListKind && vallen <= 0 {
-						defaultExist = true
-						break
-					}
-				}
-				if !defaultExist {
-					ok = false
-				}
-			} else {
-				ok = false
-			}
-		}
-	}
+	// if ok && d.Kind() == cue.ListKind {
+	// 	len, err := d.Len().Int64()
+	// 	if err != nil {
+	// 		return false, nil, err
+	// 	}
+	// 	var defaultExist bool
+	// 	if len <= 0 {
+	// 		op, vals := v.Expr()
+	// 		if op == cue.OrOp {
+	// 			for _, val := range vals {
+	// 				vallen, _ := d.Len().Int64()
+	// 				if val.Kind() == cue.ListKind && vallen <= 0 {
+	// 					defaultExist = true
+	// 					break
+	// 				}
+	// 			}
+	// 			if !defaultExist {
+	// 				ok = false
+	// 			}
+	// 		} else {
+	// 			ok = false
+	// 		}
+	// 	}
+	// }
 
 	if ok {
 		expr, err := tsprintField(d)
@@ -913,7 +913,6 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 		//
 		// For closed lists, we simply iterate over its component elements and
 		// print their typescript representation.
-
 		iter, _ := v.List()
 		var elems []ts.Expr
 		for iter.Next() {
@@ -952,27 +951,40 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 		// This list is open - its final element is ...<value> - and we can only
 		// meaningfully convert open lists to typescript if there are zero other
 		// elements.
+
+		// First, peel off a simple default, if one exists.
+		// dlist, has := v.Default()
+		// if has && op == cue.OrOp {
+		// 	di := analyzeList(dlist)
+		// 	if len(dvals) != 2 {
+		// 		panic(fmt.Sprintf("%v branches on list disjunct, can only handle 2", len(dvals)))
+		// 	}
+		// 	if di.eq(analyzeList(dvals[1])) {
+		// 		v = dvals[0]
+		// 	} else if di.eq(analyzeList(dvals[0])) {
+		// 		v = dvals[1]
+		// 	} else {
+		// 		panic("wat - list kind had default but analysis did not match for either disjunct branch")
+		// 	}
+		// }
+
+		// If the default (all lists have a default, usually self, ugh) differs from the
+		// input list, peel it off. Otherwise our AnyIndex lookup may end up getting
+		// sent on the wrong path.
+		defv, _ := v.Default()
+		if !defv.Equals(v) {
+			v = dvals[0]
+		}
+
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
-		has := e.Exists()
-		if has {
+		if e.Exists() {
 			expr, err := tsprintField(e)
 			if err != nil {
 				return nil, err
 			}
 			return tsast.ListExpr{Expr: expr}, nil
 		} else {
-			// When it is a concrete list.
-			iter, _ := v.List()
-			if iter.Next() {
-				expr := tsprintType(iter.Value().Kind())
-				if expr == nil {
-					label, _ := v.Label()
-					return nil, valError(v, "can't convert list element of %v to typescript", label)
-				}
-				return tsast.ListExpr{Expr: expr}, nil
-			}
-
-			panic("💩")
+			panic("unreachable - open list must have a type")
 		}
 	case cue.NumberKind, cue.StringKind:
 		// It appears there are only three cases in which we can have an
