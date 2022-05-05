@@ -30,7 +30,7 @@
   specification easy
 - [**TypeScript**](https://typescript.com) is dominant in the frontend, but
   cannot natively benefit from this
-- [**CUE types**](https://cuelang.org/docs/tutorials/tour/types/) have direct
+- [**CUE types**](https://cuelang.org/docs/tutorials/tour/types/) often have direct
   **TypeScript equivalents**, so cuetsy can bridge this gap
 
 ### Example
@@ -80,8 +80,7 @@ export enum Pets {
 
 ### Status
 
-Cuetsy is in its early development, so it does not support all TypeScript
-features. However, the following are supported:
+Cuetsy is experimental. The following are supported:
 
 - **Types**
   - **[Unions](#union-types)**
@@ -106,6 +105,8 @@ $ cuetsy [file.cue]
 ```
 
 This will create a logically equivalent `[file].ts`
+
+Alternatively, cuetsy can be used as a [library](https://pkg.go.dev/github.com/grafana/cuetsy#GenerateAST) for more customized code generation.
 
 ### Union Types
 
@@ -146,7 +147,7 @@ TypeScript interfaces are expressed as regular structs in CUE.
 
 **Caveats:**
 
-- Nested structs are not supported
+- [Default generation](#Defaults) does not work correctly for optional nested structs. [Issue](https://github.com/grafana/cuetsy/issues/32)
 
 <table>
 <tr><th>CUE</th><th>TypeScript</th></tr>
@@ -180,8 +181,9 @@ export interface MyInterface {
 
 #### Inheritance
 
-Interfaces can optionally inherit from another interface. This is expressed
-using the union operator `&`:
+Interfaces can optionally extend another interface. If a type marked for
+export as a `kind="interface"` is unified (whether by `&` or embedding) with
+another type marked for export as an interface, it will produce `extend` in output:
 
 <table>
 <tr><th>CUE</th><th>TypeScript</th></tr>
@@ -193,8 +195,13 @@ AInterface: {
     AField: string
 } @cuetsy(kind="interface")
 
-BInterface: AInterface & {
+ByUnifying: AInterface & {
     BField: int
+} @cuetsy(kind="interface")
+
+ByEmbedding: {
+    AInterface
+    CField: bool
 } @cuetsy(kind="interface")
 ```
 
@@ -205,8 +212,13 @@ BInterface: AInterface & {
 export interface AInterface {
   AField: string;
 }
-export interface BInterface extends AInterface {
+
+export interface ByUnifying extends AInterface {
   BField: number;
+}
+
+export interface ByEmbedding extends AInterface {
+  CField: boolean;
 }
 ```
 
@@ -224,10 +236,9 @@ TypeScript's enums are union types, and are a mostly-exact mapping of what can
 be expressed with CUE's disjunctions. Disjunctions may contain only string or
 numeric values.
 
-The member names (keys) of the TypeScript enum are automatically inferred as the
+For string enums, the member names (keys) of the TypeScript enum are automatically inferred as the
 titled camel-case variant of their string value, but may be explicitly specified
-using the `memberNames` attribute. If the disjunction contains any numeric
-values, `memberNames` must be specified.
+using the `memberNames` attribute. For a numeric enum, `memberNames` must be specified.
 
 <table>
 <tr>
@@ -238,50 +249,35 @@ values, `memberNames` must be specified.
 <td>
 
 ```cue
-// Enum-level comment
-// Foo: member-level comment
-// Bar: member-level comment
 AutoCamel: "foo" | "bar" @cuetsy(kind="enum")
-// Enum-level comment
-// Foo: member-level comment
-// Bar: member-level comment
 ManualCamel: "foo" | "bar" @cuetsy(kind="enum",memberNames="Foo|Bar")
 Arbitrary: "foo" | "bar" @cuetsy(kind="enum",memberNames="Zip|Zap")
 Numeric: 0 | 1 | 2 @cuetsy(kind="enum",memberNames="Zero|One|Two")
-ErrMismatchLen: "a" | "b" | "c" @cuetsy(kind="enum",memberNames="a|b")
-ErrNamelessNumerics: 0 | 1 | 2 @cuetsy(kind="enum")
 ```
 
 </td>
 <td>
 
 ```ts
-/**
- * Enum-level comment
- **/
-enum AutoCamel {
-  // member-level comment
-  Foo = "foo",
-  // member-level comment
-  Bar = "bar",
+export enum AutoCamel {
+  Bar = 'bar',
+  Foo = 'foo',
 }
-/**
- * Enum-level comment
- **/
-enum ManualCamel {
-  // member-level comment
-  Foo = "foo",
-  // member-level comment
-  Bar = "bar",
+
+export enum ManualCamel {
+  Bar = 'bar',
+  Foo = 'foo',
 }
-enum Arbitrary {
-  Zip = "foo",
-  Zap = "bar",
+
+export enum Arbitrary {
+  Zap = 'bar',
+  Zip = 'foo',
 }
-enum Numeric {
-  Zero = 0,
+
+export enum Numeric {
   One = 1,
   Two = 2,
+  Zero = 0,
 }
 ```
 </td>
@@ -295,7 +291,7 @@ enum Numeric {
 | [Defaults](https://cuelang.org/docs/tutorials/tour/types/defaults/) | [`const`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/const) |
 
 Cuetsy can optionally generate a `const` for each type that holds default
-values. For that, attach [CUE Default
+values. For that, mark [CUE Default
 Values](https://cuelang.org/docs/tutorials/tour/types/defaults/) to your type
 definitions:
 
@@ -307,11 +303,7 @@ definitions:
 ```cue
 MyUnion: 1 | 2 | *3 @cuetsy(kind="type")
 
-MyDisjEnum: "foo" | *"bar" @cuetsy(kind="enum")
-MyStructEnum: {
-    A: "Foo"
-    B: "Bar" @cuetsy(enumDefault)
-} @cuetsy(kind="enum")
+MyEnum: "foo" | *"bar" @cuetsy(kind="enum")
 
 MyInterface: {
     num: int | *6
@@ -325,29 +317,26 @@ MyInterface: {
 
 ```typescript
 export type MyUnion = 1 | 2 | 3;
-export const myUnionDefault: MyUnion = 3;
 
-export enum MyDisjEnum {
-  Bar = "bar",
-  Foo = "foo",
-}
-export const myDisjEnumDefault: MyDisjEnum = MyDisjEnum.Bar;
+export const defaultMyUnion: MyUnion = 3;
 
-export enum MyStructEnum {
-  A = "Foo",
-  B = "Bar",
+export enum MyEnum {
+  Bar = 'bar',
+  Foo = 'foo',
 }
-export const myStructEnumDefault: MyStructEnum = MyStructEnum.B;
+
+export const defaultMyEnum: MyEnum = MyEnum.Bar;
 
 export interface MyInterface {
   enm: MyDisjEnum;
   num: number;
   txt: string;
 }
-export const myInterfaceDefault: MyInterface = {
-  enm: myDisjEnumDefault,
+
+export const defaultMyInterface: Partial<MyInterface> = {
+  enm: MyDisjEnum.Bar,
   num: 6,
-  txt: "CUE",
+  txt: 'CUE',
 };
 ```
 
