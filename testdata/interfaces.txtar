@@ -83,5 +83,4 @@ export interface I5 extends I2, I3 {
   I5_OptionalEnumReference?: E2;
 }
 
-export interface I6 extends I2, I3 {
-}
+export interface I6 extends I2, I3 {}

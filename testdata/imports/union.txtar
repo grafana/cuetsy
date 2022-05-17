@@ -40,8 +40,7 @@ NoAttrib: {
 
 -- out/gen --
 
-export interface With extends dep.Attrib {
-}
+export interface With extends dep.Attrib {}
 
 export interface Without {
   ImportedInner: {

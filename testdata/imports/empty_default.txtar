@@ -16,11 +16,9 @@ Fields: {
 
 -- out/gen --
 
-export interface IEmptyStruct {
-}
+export interface IEmptyStruct {}
 
-export type TEmptyStruct = {
-};
+export type TEmptyStruct = {};
 
 export type EmptyList = number[];
 
@@ -29,8 +27,7 @@ export const defaultEmptyList: EmptyList = [];
 export interface Fields {
   EmptyList: number[];
   EmptyReverseOrderList: string[];
-  EmptyStruct: {
-  };
+  EmptyStruct: {};
 }
 
 export const defaultFields: Partial<Fields> = {

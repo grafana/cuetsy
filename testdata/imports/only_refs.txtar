@@ -43,8 +43,7 @@ NoAttrib: {
 
 -- out/gen --
 
-export interface OnlyRefs extends Local, dep.Attrib {
-}
+export interface OnlyRefs extends Local, dep.Attrib {}
 
 export interface OnlyRefsWithout {
   ImportedInner: {

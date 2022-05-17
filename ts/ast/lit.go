@@ -1,6 +1,8 @@
 package ast
 
-import "strings"
+import (
+	"strings"
+)
 
 type ObjectLit struct {
 	Elems []KeyValueExpr
@@ -25,6 +27,11 @@ func (o ObjectLit) String() string {
 	write := b.WriteString
 	indent := func(n int) {
 		write(strings.Repeat(Indent, n))
+	}
+
+	if len(o.Elems) == 0 {
+		write("{}")
+		return b.String()
 	}
 
 	write("{\n")
