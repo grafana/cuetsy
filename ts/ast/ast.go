@@ -59,6 +59,10 @@ type Node interface {
 	fmt.Stringer
 }
 
+type innerStringer interface {
+	innerString(eol EOL, lvl int) string
+}
+
 type Expr interface {
 	Node
 	expr()
@@ -95,10 +99,12 @@ type Ident struct {
 func (i Ident) ident() {}
 func (i Ident) expr()  {}
 func (i Ident) String() string {
+	n := strings.Replace(i.Name, "#", "", -1)
+
 	if i.As != "" {
-		return fmt.Sprintf("%s as %s", i.Name, i.As)
+		return fmt.Sprintf("%s as %s", n, i.As)
 	}
-	return i.Name
+	return n
 }
 
 func None() Expr {
@@ -173,7 +179,11 @@ type KeyValueExpr struct {
 
 func (k KeyValueExpr) expr() {}
 func (k KeyValueExpr) String() string {
-	return fmt.Sprintf("%s: %s", k.Key, k.Value)
+	return k.innerString(EOL(""), 0)
+}
+
+func (k KeyValueExpr) innerString(eol EOL, lvl int) string {
+	return fmt.Sprintf("%s: %s", k.Key, innerString(eol, lvl, k.Value))
 }
 
 type UnaryExpr struct {
@@ -348,6 +358,9 @@ type ListExpr struct {
 func (l ListExpr) expr() {}
 func (l ListExpr) String() string {
 	return l.Expr.String() + "[]"
+}
+func (l ListExpr) innerString(eol EOL, lvl int) string {
+	return innerString(eol, lvl, l.Expr) + "[]"
 }
 
 type ImportSpec struct {

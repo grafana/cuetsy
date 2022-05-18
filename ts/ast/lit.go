@@ -13,15 +13,15 @@ type ObjectLit struct {
 
 func (o ObjectLit) expr() {}
 func (o ObjectLit) String() string {
-	if o.lvl == 0 {
-		o.lvl = 1
+	if len(o.eol) == 0 {
+		return o.innerString(EOLComma, o.lvl)
 	}
+	return o.innerString(o.eol, o.lvl)
+}
 
-	eol := string(o.eol)
-	if eol == "" {
-		eol = string(EOLComma)
-	}
-	eol += "\n"
+func (o ObjectLit) innerString(aeol EOL, lvl int) string {
+	lvl++
+	eol := string(aeol) + "\n"
 
 	var b strings.Builder
 	write := b.WriteString
@@ -36,18 +36,12 @@ func (o ObjectLit) String() string {
 
 	write("{\n")
 	for _, e := range o.Elems {
-		if oo, ok := e.Value.(ObjectLit); ok {
-			oo.eol = o.eol
-			oo.lvl = o.lvl + 1
-			e.Value = oo
-		}
-
-		indent(o.lvl)
-		write(e.String())
+		indent(lvl)
+		write(innerString(aeol, lvl, e))
 		write(eol)
 	}
 
-	indent(o.lvl - 1)
+	indent(lvl - 1)
 	write("}")
 
 	return b.String()
@@ -57,11 +51,22 @@ type ListLit struct {
 	Elems []Expr
 }
 
+func innerString(eol EOL, lvl int, e Expr) string {
+	if x, ok := e.(innerStringer); ok {
+		return x.innerString(eol, lvl)
+	}
+	return e.String()
+}
+
 func (l ListLit) expr() {}
 func (l ListLit) String() string {
+	return l.innerString(EOLComma, 0)
+}
+
+func (l ListLit) innerString(eol EOL, lvl int) string {
 	strs := make([]string, len(l.Elems))
 	for i, e := range l.Elems {
-		strs[i] = e.String()
+		strs[i] = innerString(eol, lvl, e)
 	}
 	return string(SquareBrack[0]) + strings.Join(strs, ", ") + string(SquareBrack[1])
 }

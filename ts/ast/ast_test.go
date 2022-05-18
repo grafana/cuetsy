@@ -107,3 +107,58 @@ func TestEnumType(t *testing.T) {
 }`
 	is.Equal(want, T.String())
 }
+
+func TestIndentation(t *testing.T) {
+	is := is.New(t)
+
+	kv1 := kv(ident("foo"), ident("string"))
+	obj1 := obj(
+		kv(ident("astring"), ident("string")),
+		kv(ident("anum"), ident("number")),
+	)
+
+	OT := obj(kv1, kv(ident("alist"), list(obj1)))
+	want := `{
+  foo: string,
+  alist: [{
+    astring: string,
+    anum: number,
+  }],
+}`
+	is.Equal(want, OT.String())
+
+	IT := ast.InterfaceType{
+		Elems: []ast.KeyValueExpr{
+			kv1,
+			kv(ident("alist"), ast.ListExpr{obj1}),
+		},
+	}
+
+	want = `{
+  foo: string;
+  alist: {
+    astring: string;
+    anum: number;
+  }[];
+}`
+	is.Equal(want, IT.String())
+}
+
+func list(exprs ...ast.Expr) ast.ListLit {
+	return ast.ListLit{
+		Elems: exprs,
+	}
+}
+
+func obj(kv ...ast.KeyValueExpr) ast.ObjectLit {
+	return ast.ObjectLit{
+		Elems: kv,
+	}
+}
+
+func kv(k, v ast.Expr) ast.KeyValueExpr {
+	return ast.KeyValueExpr{
+		Key:   k,
+		Value: v,
+	}
+}
