@@ -206,6 +206,10 @@ func (b BinaryExpr) String() string {
 	return fmt.Sprintf("%s %s %s", b.X, b.Op, b.Y)
 }
 
+func (b BinaryExpr) innerString(eol EOL, lvl int) string {
+	return fmt.Sprintf("%s %s %s", innerString(eol, lvl, b.X), b.Op, innerString(eol, lvl+1, b.Y))
+}
+
 type TypeTransformExpr struct {
 	Transform string // e.g. "Partial"
 	Expr      Expr
