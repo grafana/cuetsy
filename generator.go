@@ -3,7 +3,6 @@ package cuetsy
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"math/bits"
 	"sort"
 	"strings"
@@ -124,10 +123,6 @@ func execGetString(t *template.Template, data interface{}) (string, error) {
 }
 
 func (g *generator) decl(name string, v cue.Value) []ts.Decl {
-	if !token.IsExported(name) {
-		return nil
-	}
-
 	// Value preparation:
 	// 1. Inspect for defaults, do...what with them?
 	// 2. For strings, wrap in single quotes
