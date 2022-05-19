@@ -23,18 +23,32 @@ const (
 	attrForceText   = "forceText"
 )
 
-type tsKind string
+// TSType strings indicate the kind of TypeScript declaration to which a CUE
+// value should be translated. They are used in both @cuetsy attributes, and in
+// calls to certain methods.
+type TSType string
 
 const (
-	kindType      tsKind = "type"
-	kindInterface tsKind = "interface"
-	kindEnum      tsKind = "enum"
+	// TypeAlias targets conversion of a CUE value to a TypeScript `type`
+	// declaration, which are called type aliases:
+	// https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-aliases
+	TypeAlias TSType = "type"
+
+	// TypeInterface targets conversion of a CUE value to a TypeScript `interface`
+	// declaration:
+	// https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#interfaces
+	TypeInterface TSType = "interface"
+
+	// TypeEnum targets conversion of a CUE value to a TypeScript `enum`
+	// declaration:
+	// https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#enums
+	TypeEnum TSType = "enum"
 )
 
-var allKinds = [...]tsKind{
-	kindType,
-	kindInterface,
-	kindEnum,
+var allKinds = [...]TSType{
+	TypeAlias,
+	TypeInterface,
+	TypeEnum,
 }
 
 // An ImportMapper takes an ImportDecl and returns a string indicating the
@@ -100,6 +114,52 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 
 	return &file, g.err
 }
+func GenerateSingleAST(name string, v cue.Value, t TSType) (*DeclPair, error) {
+	g := &generator{
+		c:   Config{},
+		val: &v,
+	}
+
+	switch t {
+	case TypeEnum:
+		return fromDeclSlice(g.genEnum(name, v), g.err)
+	case TypeInterface:
+		return fromDeclSlice(g.genInterface(name, v), g.err)
+	case TypeAlias:
+		return fromDeclSlice(g.genType(name, v), g.err)
+	default:
+		return nil, fmt.Errorf("unrecognized TSType %q", string(t))
+	}
+}
+
+// DeclPair represents a generated type declaration, with its corresponding default declaration.
+type DeclPair struct {
+	// The generated type declaration.
+	T ts.Decl
+	// The default declaration corresponding to T.
+	D ts.Decl
+}
+
+func fromDeclSlice(decl []ts.Decl, err error) (*DeclPair, error) {
+	if err != nil {
+		return nil, err
+	}
+	switch len(decl) {
+	case 0:
+		return nil, errors.New("no decls returned")
+	case 1:
+		return &DeclPair{
+			T: decl[0],
+		}, nil
+	case 2:
+		return &DeclPair{
+			T: decl[0],
+			D: decl[1],
+		}, nil
+	default:
+		return nil, fmt.Errorf("expected 1 or 2 decls in slice, got %v", len(decl))
+	}
+}
 
 type generator struct {
 	val *cue.Value
@@ -148,11 +208,11 @@ func (g *generator) decl(name string, v cue.Value) []ts.Decl {
 		return nil
 	}
 	switch tst {
-	case kindEnum:
+	case TypeEnum:
 		return g.genEnum(name, v)
-	case kindInterface:
+	case TypeInterface:
 		return g.genInterface(name, v)
-	case kindType:
+	case TypeAlias:
 		return g.genType(name, v)
 	default:
 		return nil // TODO error out
@@ -311,7 +371,7 @@ func enumDefault(v cue.Value) (*tsast.Ident, error) {
 func enumPairs(v cue.Value) ([]enumPair, error) {
 	// TODO should validate here. Or really, this is just evidence of how building these needs its own types
 	op, dvals := v.Expr()
-	if !targetsKind(v, kindEnum) || op != cue.OrOp {
+	if !targetsKind(v, TypeEnum) || op != cue.OrOp {
 		return nil, fmt.Errorf("not an enum: %v (%s)", v, v.Path())
 	}
 
@@ -490,7 +550,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			// but weird, as writing >1 literal and unifying them is the same as just writing
 			// one containing the unified result - more complicated with no obvious benefit.
 			for _, dv := range dvals {
-				if dv.IncompleteKind() != cue.StructKind {
+				if dv.IncompleteKind() != cue.StructKind && dv.IncompleteKind() != cue.TopKind {
 					panic("impossible? seems like it should be. if this pops, clearly not!")
 				}
 
@@ -653,7 +713,7 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 		// changes how we generate.
 		if containsPred(v, 1,
 			isReference,
-			func(v cue.Value) bool { return targetsKind(cue.Dereference(v), kindEnum) },
+			func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
 		) {
 			return g.genEnumReference(v)
 		}
@@ -720,7 +780,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	// Search the expr tree for the actual enum. This approach is uncomfortable
 	// without having the assurance that there aren't more than one possible match/a
 	// guarantee from the CUE API of a stable, deterministic search order, etc.
-	ev, referrer, has := findRefWithKind(v, kindEnum)
+	ev, referrer, has := findRefWithKind(v, TypeEnum)
 	if !has {
 		ve := valError(v, "no enum attr")
 		g.addErr(ve)
@@ -1012,7 +1072,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 			return nil, valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
 		}
 		fallthrough
-	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind:
+	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind, cue.StructKind:
 		// Having eliminated the possibility of bounds/constraints, we're left
 		// with disjunctions and basic types.
 		switch op {
@@ -1037,7 +1097,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 		return disj(dvals)
 	}
 
-	return nil, valError(v, "unrecognized kind %s", ik)
+	return nil, valError(v, "unrecognized kind %v", ik)
 }
 
 // ONLY call this function if it has been established that the provided Value is
@@ -1106,17 +1166,17 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 		// (We can't do cycle detection with the meager tools
 		// exported in cuelang.org/go/cue, so all we have for the
 		// parent case is hopium.)
-		if _, ok := dvals[1].Source().(*ast.Ident); ok && targetsKind(deref, kindInterface) {
+		if _, ok := dvals[1].Source().(*ast.Ident); ok && targetsKind(deref, TypeInterface) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.SelectorExpr:
 		// panic("case 2")
-		if targetsKind(deref, kindInterface) {
+		if targetsKind(deref, TypeInterface) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.Ident:
 		// panic("case 3")
-		if targetsKind(deref, kindInterface) {
+		if targetsKind(deref, TypeInterface) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
 				panic("expected dvals[0].Source() to implement String()")
@@ -1144,7 +1204,7 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 // An nil expr indicates a reference is not allowable, including the case
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
-func referenceValueAs(v cue.Value, kinds ...tsKind) (ts.Expr, error) {
+func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 	// Bail out right away if there's no reference anywhere in the value.
 	// if !containsReference(v) {
 	// 	return nil, nil

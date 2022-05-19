@@ -65,7 +65,7 @@ type typeBuilder struct {
 
 	valueParts []cue.Value
 
-	tsk  tsKind
+	tsk  TSType
 	kind cue.Kind
 
 	built  ts.Node

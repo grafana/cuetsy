@@ -21,7 +21,7 @@ func isReference(v cue.Value) bool {
 	return false
 }
 
-func getKindFor(v cue.Value) (tsKind, error) {
+func getKindFor(v cue.Value) (TSType, error) {
 	// Direct lookup of attributes with Attribute() seems broken-ish, so do our
 	// own search as best we can, allowing ValueAttrs, which include both field
 	// and decl attributes.
@@ -47,7 +47,7 @@ func getKindFor(v cue.Value) (tsKind, error) {
 	if !found {
 		return "", valError(v, "no value for the %q key in @%s attribute", attrKind, attrname)
 	}
-	return tsKind(tt), nil
+	return TSType(tt), nil
 }
 
 func getForceText(v cue.Value) string {
@@ -75,7 +75,7 @@ func targetsAnyKind(v cue.Value) bool {
 	return targetsKind(v)
 }
 
-func targetsKind(v cue.Value, kinds ...tsKind) bool {
+func targetsKind(v cue.Value, kinds ...TSType) bool {
 	vkind, err := getKindFor(v)
 	if err != nil {
 		return false
@@ -111,7 +111,7 @@ func containsReference(v cue.Value) bool {
 
 // containsCuetsyReference does the same as containsReference, but returns true
 // iff at least one referenced node passes the targetsKind predicate check
-func containsCuetsyReference(v cue.Value, kinds ...tsKind) bool {
+func containsCuetsyReference(v cue.Value, kinds ...TSType) bool {
 	if isReference(v) && targetsKind(cue.Dereference(v), kinds...) {
 		return true
 	}
@@ -178,7 +178,7 @@ func flatten(v cue.Value) []cue.Value {
 	return all
 }
 
-func findRefWithKind(v cue.Value, kinds ...tsKind) (ref, referrer cue.Value, has bool) {
+func findRefWithKind(v cue.Value, kinds ...TSType) (ref, referrer cue.Value, has bool) {
 	xt := exprTree(v)
 	xt.Walk(func(n *exprNode) bool {
 		// don't explore defaults paths
