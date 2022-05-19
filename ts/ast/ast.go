@@ -1,7 +1,9 @@
 package ast
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -96,6 +98,10 @@ type Ident struct {
 	As string
 }
 
+var identRegexp = regexp.MustCompile("^[a-zA-Z_$][0-9a-zA-Z_$]*$")
+
+var ErrBadIdent = errors.New("typescript idents must contain only alphanumeric characters")
+
 func (i Ident) ident() {}
 func (i Ident) expr()  {}
 func (i Ident) String() string {
@@ -105,6 +111,16 @@ func (i Ident) String() string {
 		return fmt.Sprintf("%s as %s", n, i.As)
 	}
 	return n
+}
+
+func (i Ident) Validate() error {
+	if !identRegexp.MatchString(i.Name) {
+		return ErrBadIdent
+	}
+	if i.As != "" && !identRegexp.MatchString(i.Name) {
+		return ErrBadIdent
+	}
+	return nil
 }
 
 func None() Expr {

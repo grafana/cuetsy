@@ -444,10 +444,15 @@ func orEnum(v cue.Value) ([]ts.Expr, error) {
 			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings or numbers")
 		}
 
+		id := ts.Ident(strings.Title(text))
+		if id.Validate() != nil {
+			return nil, valError(v, "title casing of enum member %q produces an invalid typescript identifier; memberNames must be explicitly given in @cuetsy attribute", text)
+		}
+
 		fields = append(fields, tsast.AssignExpr{
 			// Simple mapping of all enum values (which we are assuming are in
 			// lowerCamelCase) to corresponding CamelCase
-			Name:  ts.Ident(strings.Title(text)),
+			Name:  id,
 			Value: tsprintConcrete(dv),
 		})
 	}
