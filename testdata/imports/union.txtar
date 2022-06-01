@@ -55,8 +55,8 @@ export interface LocalStruct {
 
 export type LocalScalar = string;
 
-export type UnionType = With | Without | LocalStruct | LocalScalar;
+export type UnionType = (With | Without | LocalStruct | LocalScalar);
 
 export interface UnionInterface {
-  field: With | Without | LocalStruct | LocalScalar;
+  field: (With | Without | LocalStruct | LocalScalar);
 }

@@ -27,7 +27,7 @@ NestedFoo: {
 
 -- ts  --
 
-export type AType = 'foo' | 'bar' | 'baz';
+export type AType = ('foo' | 'bar' | 'baz');
 
 export const defaultAType: AType = 'baz';
 

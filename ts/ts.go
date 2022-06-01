@@ -46,7 +46,7 @@ func Union(elems ...Expr) Expr {
 		}
 	}
 
-	return U
+	return ast.ParenExpr{Expr: U}
 }
 
 func Export(decl ast.Decl) Decl {
