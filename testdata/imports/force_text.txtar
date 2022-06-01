@@ -25,7 +25,7 @@ export enum MyType {
   B = 2,
 }
 
-export type ModeOptions = ModeOptionsA | ModeOptionsB;
+export type ModeOptions = (ModeOptionsA | ModeOptionsB);
 
 export interface ModeOptionsA {
   aProp: boolean;

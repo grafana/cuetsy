@@ -202,6 +202,19 @@ func (k KeyValueExpr) innerString(eol EOL, lvl int) string {
 	return fmt.Sprintf("%s: %s", k.Key, innerString(eol, lvl, k.Value))
 }
 
+type ParenExpr struct {
+	Expr Expr
+}
+
+func (p ParenExpr) expr() {}
+func (p ParenExpr) String() string {
+	return p.innerString(EOL(""), 0)
+}
+
+func (p ParenExpr) innerString(eol EOL, lvl int) string {
+	return fmt.Sprintf("(%s)", innerString(eol, lvl, p.Expr))
+}
+
 type UnaryExpr struct {
 	Op   string // operator
 	Expr Expr   // operand

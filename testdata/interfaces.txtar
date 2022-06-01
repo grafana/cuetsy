@@ -54,7 +54,7 @@ export enum E2 {
 
 export interface I1 {
   I1_FloatLiteral: 4.4;
-  I1_OptionalDisjunctionLiteral?: 'other' | 'values' | 2;
+  I1_OptionalDisjunctionLiteral?: ('other' | 'values' | 2);
   I1_Top: any;
 }
 

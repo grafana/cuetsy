@@ -1,0 +1,41 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+U1: "foo" | "bar" | "baz" @cuetsy(kind="type")
+U2: U1 | "bix" @cuetsy(kind="type")
+U3: {
+    bigU: dep.U1 | U2 | U1
+    listU: [...(dep.U1 | U2 | U1)]
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+U1: 1 | 2 | 3 @cuetsy(kind="type")
+
+NoAttrib: {
+    ImportedInner: {
+      nestedval: string
+    }
+    importedNoAttribField: string
+}
+
+-- out/gen --
+
+export type U1 = ('foo' | 'bar' | 'baz');
+
+export type U2 = (U1 | 'bix');
+
+export interface U3 {
+  bigU: (dep.U1 | U2 | U1);
+  listU: (dep.U1 | U2 | U1)[];
+}
+
+export const defaultU3: Partial<U3> = {
+  listU: [],
+};
