@@ -1,0 +1,50 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+Outer: {
+    optlist?: [...{
+        reqf: string
+        optf?: int64
+    }]
+    reqlist: [...{
+        reqf: number
+        optf?: uint
+    }]
+    optstruct?: {
+        reqf: string
+        optf?: string
+    }
+    reqstruct: {
+        reqf: string
+        optf?: string
+    }
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface Outer {
+  optlist?: {
+    reqf: string;
+    optf?: number;
+  }[];
+  optstruct?: {
+    reqf: string;
+    optf?: string;
+  };
+  reqlist: {
+    reqf: number;
+    optf?: number;
+  }[];
+  reqstruct: {
+    reqf: string;
+    optf?: string;
+  };
+}
+
+export const defaultOuter: Partial<Outer> = {
+  optlist: [],
+  reqlist: [],
+};

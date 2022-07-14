@@ -952,7 +952,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 	case cue.StructKind:
 		switch op {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
-			iter, err := v.Fields()
+			iter, err := v.Fields(cue.Optional(true))
 			if err != nil {
 				return nil, valError(v, "something went wrong when generate nested structs")
 			}
@@ -964,9 +964,12 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 				if err != nil {
 					return nil, valError(v, err.Error())
 				}
-
+				k := iter.Label()
+				if iter.IsOptional() {
+					k += "?"
+				}
 				kvs = append(kvs, tsast.KeyValueExpr{
-					Key:   ts.Ident(iter.Label()),
+					Key:   ts.Ident(k),
 					Value: expr,
 				})
 			}
