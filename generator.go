@@ -236,7 +236,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 			}
 			tokens = append(tokens, tok)
 		}
-	case cue.NoOp:
+	case cue.NoOp, cue.RegexMatchOp:
 		tok, err := tsprintField(v)
 		if err != nil {
 			g.addErr(err)
