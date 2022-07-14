@@ -1,0 +1,20 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+Top: =~"^([0-9]+)(\\.[0-9x]+)?(\\.[0-9x])?$" | *"0.x.x" @cuetsy(kind="type")
+Inside: {
+    inner: =~"^[0-9a-z]+\\-([0-9a-z]+\\-)"
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export type Top = string;
+
+export const defaultTop: Top = '0.x.x';
+
+export interface Inside {
+  inner: string;
+}

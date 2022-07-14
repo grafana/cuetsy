@@ -236,7 +236,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 			}
 			tokens = append(tokens, tok)
 		}
-	case cue.NoOp:
+	case cue.NoOp, cue.RegexMatchOp:
 		tok, err := tsprintField(v)
 		if err != nil {
 			g.addErr(err)
@@ -1072,6 +1072,10 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 		//
 		// TODO get more certainty/a clearer way of ascertaining this
 		switch op {
+		case cue.RegexMatchOp:
+			// Typescript has no native type for representing regexes. Only
+			// option is to fall back to string.
+			return tsprintType(cue.StringKind), nil
 		case cue.NoOp, cue.OrOp, cue.AndOp:
 		default:
 			return nil, valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
