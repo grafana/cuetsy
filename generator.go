@@ -75,7 +75,7 @@ type Config struct {
 // Generate takes a cue.Value and generates the corresponding TypeScript for all
 // top-level members of that value that have appropriate @cuetsy attributes.
 //
-// Members that are definitions, hidden fields, or optional fields are ignored.
+// Hidden fields are ignored.
 func Generate(val cue.Value, c Config) (b []byte, err error) {
 	file, err := GenerateAST(val, c)
 	if err != nil {
@@ -183,25 +183,6 @@ func execGetString(t *template.Template, data interface{}) (string, error) {
 }
 
 func (g *generator) decl(name string, v cue.Value) []ts.Decl {
-	// Value preparation:
-	// 1. Inspect for defaults, do...what with them?
-	// 2. For strings, wrap in single quotes
-	// 3. For basic types, retain as string literal
-	// 4. For named types, deref to type if a definition (#-led), else translate to string literal
-	// 5. Reject all field/list comprehensions?
-	// 6. String interpolation probably shouldn't be allowed
-	// 7. Probably can't allow any function calls either
-
-	// Validation TODOs
-	// - Experiment with things like field comprehensions, string evals, etc.,
-	//   to see how much evaluation we can easily trigger (and therefore, how
-	//   little of CUE we have to cut off) without making unclear exactly what
-	//   gets exported to TS
-	// - See if we can write a CUE file for generalized validation of the inputs
-	//   to this program - e.g., all enum values are lowerCamelCase
-	// - Disallow exported structs without an annotation...? The only goal there would
-	//   be to try to provide more guiding guardrails to users
-
 	tst, err := getKindFor(v)
 	if err != nil {
 		// Ignore values without attributes
@@ -285,9 +266,9 @@ type KV struct {
 }
 
 // genEnum turns the following cue values into typescript enums:
-// - value disjunction (a | b | c): values are taken as attribut memberNames,
-//   if memberNames is absent, then keys implicitely generated as CamelCase
-// - string struct: struct keys get enum keys, struct values enum values
+//   - value disjunction (a | b | c): values are taken as attribut memberNames,
+//     if memberNames is absent, then keys implicitly generated as CamelCase
+//   - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
@@ -472,39 +453,6 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		g.addErr(valError(v, "typescript interfaces may only be generated from structs"))
 		return nil
 	}
-
-	// There are basic two paths to extracting what we treat as the body
-	// of the Typescript interface to generate. The first, simpler case,
-	// applies when there's just a literal struct declaration for the label,
-	// e.g.:
-	//
-	//  a: {
-	//	  foo: string
-	//  }
-	//
-	// Such declarations return an empty []Value from Expr(), so we
-	// construct them through Value.Fields() instead. However, when there's
-	// unification involved:
-	//
-	// b: a & {
-	//	  bar: string
-	//  }
-	//
-	// Then Value.Fields() represents the *results* of evaluating the
-	// expression. This is an unavoidable part of constructing the value
-	// (cue.Instance.Value() triggers it), but it's not what we want for
-	// generating Typescript; cuetsy's goal is to generate Typescript text that
-	// is semantically equivalent to the original CUE, but relying on
-	// Typescript's "extends" composition where possible. This is necessary to
-	// allow CUE subcomponents that are imported from dependencies which may
-	// change to be "updated" in Typescript side through standard dependency
-	// management means, rather than requiring a regeneration of the literal
-	// type from CUE. (In other words, we want the TS text and CUE text to look
-	// structurally the same-ish.)
-	//
-	// So, if Value.Expr() returns at least one result, we process the expression
-	// parts to separate them into elements that should be literals on the
-	// resulting Typescript interface, vs. ones that are composed via "extends."
 
 	// Create an empty value, onto which we'll unify fields that need not be
 	// generated as literals.
