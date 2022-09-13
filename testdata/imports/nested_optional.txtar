@@ -26,18 +26,18 @@ Outer: {
 -- out/gen --
 
 export interface Outer {
-  optlist?: {
+  optlist?: Array<{
     reqf: string;
     optf?: number;
-  }[];
+  }>;
   optstruct?: {
     reqf: string;
     optf?: string;
   };
-  reqlist: {
+  reqlist: Array<{
     reqf: number;
     optf?: number;
-  }[];
+  }>;
   reqstruct: {
     reqf: string;
     optf?: string;

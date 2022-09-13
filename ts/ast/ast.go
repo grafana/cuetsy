@@ -390,10 +390,10 @@ type ListExpr struct {
 
 func (l ListExpr) expr() {}
 func (l ListExpr) String() string {
-	return l.Expr.String() + "[]"
+	return "Array<" + l.Expr.String() + ">"
 }
 func (l ListExpr) innerString(eol EOL, lvl int) string {
-	return innerString(eol, lvl, l.Expr) + "[]"
+	return "Array<" + innerString(eol, lvl, l.Expr) + ">"
 }
 
 type ImportSpec struct {

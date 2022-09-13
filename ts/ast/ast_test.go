@@ -117,13 +117,13 @@ func TestIndentation(t *testing.T) {
 		kv(ident("anum"), ident("number")),
 	)
 
-	OT := obj(kv1, kv(ident("alist"), list(obj1)))
+	OT := obj(kv1, kv(ident("alist"), ast.ListExpr{obj1}))
 	want := `{
   foo: string,
-  alist: [{
+  alist: Array<{
     astring: string,
     anum: number,
-  }],
+  }>,
 }`
 	is.Equal(want, OT.String())
 
@@ -136,18 +136,12 @@ func TestIndentation(t *testing.T) {
 
 	want = `{
   foo: string;
-  alist: {
+  alist: Array<{
     astring: string;
     anum: number;
-  }[];
+  }>;
 }`
 	is.Equal(want, IT.String())
-}
-
-func list(exprs ...ast.Expr) ast.ListLit {
-	return ast.ListLit{
-		Elems: exprs,
-	}
 }
 
 func obj(kv ...ast.KeyValueExpr) ast.ObjectLit {

@@ -20,13 +20,13 @@ export interface IEmptyStruct {}
 
 export type TEmptyStruct = Record<string, unknown>;
 
-export type EmptyList = number[];
+export type EmptyList = Array<number>;
 
 export const defaultEmptyList: EmptyList = [];
 
 export interface Fields {
-  EmptyList: number[];
-  EmptyReverseOrderList: string[];
+  EmptyList: Array<number>;
+  EmptyReverseOrderList: Array<string>;
   EmptyStruct: Record<string, unknown>;
 }
 

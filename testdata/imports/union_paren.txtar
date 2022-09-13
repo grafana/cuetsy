@@ -33,7 +33,7 @@ export type U2 = (U1 | 'bix');
 
 export interface U3 {
   bigU: (dep.U1 | U2 | U1);
-  listU: (dep.U1 | U2 | U1)[];
+  listU: Array<(dep.U1 | U2 | U1)>;
 }
 
 export const defaultU3: Partial<U3> = {

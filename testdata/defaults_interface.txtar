@@ -31,7 +31,7 @@ export type AType = ('foo' | 'bar' | 'baz');
 
 export const defaultAType: AType = 'baz';
 
-export type ATypedList = number[];
+export type ATypedList = Array<number>;
 
 export const defaultATypedList: ATypedList = [1, 2];
 
@@ -39,7 +39,7 @@ export interface Foo {
   Bar: string;
   Baz: number;
   C: AType;
-  I1_TypedList: number[];
+  I1_TypedList: Array<number>;
   I2_TypedList: ATypedList;
 }
 

@@ -62,7 +62,7 @@ export interface I2 {
   I2_Number: number;
   I2_OptionalBool?: boolean;
   I2_OptionalInterfaceReference?: I1;
-  I2_TypedList: number[];
+  I2_TypedList: Array<number>;
 }
 
 export const defaultI2: Partial<I2> = {
