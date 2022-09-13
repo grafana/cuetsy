@@ -18,7 +18,7 @@ Fields: {
 
 export interface IEmptyStruct {}
 
-export type TEmptyStruct = {};
+export type TEmptyStruct = Record<string, unknown>;
 
 export type EmptyList = number[];
 
@@ -27,7 +27,7 @@ export const defaultEmptyList: EmptyList = [];
 export interface Fields {
   EmptyList: number[];
   EmptyReverseOrderList: string[];
-  EmptyStruct: {};
+  EmptyStruct: Record<string, unknown>;
 }
 
 export const defaultFields: Partial<Fields> = {

@@ -1,9 +1,6 @@
 package ts
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/grafana/cuetsy/ts/ast"
 )
 
@@ -54,11 +51,11 @@ func Export(decl ast.Decl) Decl {
 }
 
 func Raw(data string) ast.Raw {
-	pc, file, no, ok := runtime.Caller(1)
-	details := runtime.FuncForPC(pc)
-	if ok && details != nil {
-		fmt.Printf("fix: ts.Raw used by %s at %s#%d\n", details.Name(), file, no)
-	}
+	// pc, file, no, ok := runtime.Caller(1)
+	// details := runtime.FuncForPC(pc)
+	// if ok && details != nil {
+	// 	fmt.Printf("fix: ts.Raw used by %s at %s#%d\n", details.Name(), file, no)
+	// }
 
 	return ast.Raw{Data: data}
 }

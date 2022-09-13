@@ -5,7 +5,8 @@ import (
 )
 
 type ObjectLit struct {
-	Elems []KeyValueExpr
+	Elems  []KeyValueExpr
+	IsType bool
 
 	eol EOL
 	lvl int
@@ -30,7 +31,11 @@ func (o ObjectLit) innerString(aeol EOL, lvl int) string {
 	}
 
 	if len(o.Elems) == 0 {
-		write("{}")
+		if o.IsType {
+			write("Record<string, unknown>")
+		} else {
+			write("{}")
+		}
 		return b.String()
 	}
 

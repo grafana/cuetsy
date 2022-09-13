@@ -210,7 +210,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	switch op {
 	case cue.OrOp:
 		for _, dv := range dvals {
-			tok, err := tsprintField(dv)
+			tok, err := tsprintField(dv, true)
 			if err != nil {
 				g.addErr(err)
 				return nil
@@ -218,7 +218,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 			tokens = append(tokens, tok)
 		}
 	case cue.NoOp, cue.RegexMatchOp:
-		tok, err := tsprintField(v)
+		tok, err := tsprintField(v, true)
 		if err != nil {
 			g.addErr(err)
 			return nil
@@ -240,7 +240,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 		return []ts.Decl{T}
 	}
 
-	val, err := tsprintField(d)
+	val, err := tsprintField(d, false)
 	g.addErr(err)
 
 	def := tsast.VarDecl{
@@ -656,7 +656,7 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 
 	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
 	if !containsCuetsyReference(v) {
-		tref.T, err = tsprintField(v)
+		tref.T, err = tsprintField(v, true)
 		if err != nil {
 			g.addErr(valError(v, "could not generate field: %w", err))
 			return nil, err
@@ -671,7 +671,7 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 			return g.genEnumReference(v)
 		}
 
-		expr, err := tsprintField(v)
+		expr, err := tsprintField(v, true)
 		if err != nil {
 			g.addErr(err)
 			return nil, nil
@@ -842,7 +842,7 @@ func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	// }
 
 	if ok {
-		expr, err := tsprintField(d)
+		expr, err := tsprintField(d, false)
 		if err != nil {
 			return false, nil, err
 		}
@@ -867,7 +867,7 @@ func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 
 // Render a string containing a Typescript semantic equivalent to the provided
 // Value for placement in a single field, if possible.
-func tsprintField(v cue.Value) (ts.Expr, error) {
+func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	// Let the forceText attribute supersede everything.
 	if ft := getForceText(v); ft != "" {
 		return ts.Raw(ft), nil
@@ -908,7 +908,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 			size, _ := v.Len().Int64()
 			kvs := make([]tsast.KeyValueExpr, 0, size)
 			for iter.Next() {
-				expr, err := tsprintField(iter.Value())
+				expr, err := tsprintField(iter.Value(), isType)
 				if err != nil {
 					return nil, valError(v, err.Error())
 				}
@@ -922,7 +922,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 				})
 			}
 
-			return tsast.ObjectLit{Elems: kvs}, nil
+			return tsast.ObjectLit{Elems: kvs, IsType: isType}, nil
 		default:
 			panic(fmt.Sprintf("not expecting op type %d", op))
 		}
@@ -937,7 +937,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 		iter, _ := v.List()
 		var elems []ts.Expr
 		for iter.Next() {
-			e, err := tsprintField(iter.Value())
+			e, err := tsprintField(iter.Value(), isType)
 			if err != nil {
 				return nil, err
 			}
@@ -954,7 +954,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 	disj := func(dvals []cue.Value) (ts.Expr, error) {
 		parts := make([]ts.Expr, 0, len(dvals))
 		for _, dv := range dvals {
-			p, err := tsprintField(dv)
+			p, err := tsprintField(dv, isType)
 			if err != nil {
 				return nil, err
 			}
@@ -999,7 +999,7 @@ func tsprintField(v cue.Value) (ts.Expr, error) {
 
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		if e.Exists() {
-			expr, err := tsprintField(e)
+			expr, err := tsprintField(e, isType)
 			if err != nil {
 				return nil, err
 			}
