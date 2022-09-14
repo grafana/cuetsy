@@ -47,7 +47,7 @@ func Union(elems ...Expr) Expr {
 }
 
 func Export(decl ast.Decl) Decl {
-	return ast.ExportStmt{Decl: decl}
+	return ast.ExportKeyword{Decl: decl}
 }
 
 func Raw(data string) ast.Raw {

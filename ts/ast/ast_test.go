@@ -144,6 +144,153 @@ func TestIndentation(t *testing.T) {
 	is.Equal(want, IT.String())
 }
 
+func TestExportNamedSet(t *testing.T) {
+	frompath := "./smoochie/goo"
+
+	namedsetstt := map[string]struct {
+		input ast.ExportNamedSet
+		want  string
+	}{
+		"single": {
+			want: `export { AnnotationQuery };`,
+			input: ast.ExportNamedSet{
+				Exports: []ast.NamedSpecifier{
+					{
+						Name: "AnnotationQuery",
+					},
+				},
+			},
+		},
+		"singletype": {
+			want: `export type { AnnotationQuery };`,
+			input: ast.ExportNamedSet{
+				TypeOnly: true,
+				Exports: []ast.NamedSpecifier{
+					{
+						Name: "AnnotationQuery",
+					},
+				},
+			},
+		},
+		"singleas": {
+			want: `export { VariableModel as Farck };`,
+			input: ast.ExportNamedSet{
+				Exports: []ast.NamedSpecifier{
+					{
+						Name:   "VariableModel",
+						AsName: "Farck",
+					},
+				},
+			},
+		},
+		"singleasfrom": {
+			want: `export { VariableModel as Farck } from './smoochie/goo';`,
+			input: ast.ExportNamedSet{
+				Exports: []ast.NamedSpecifier{
+					{
+						Name:   "VariableModel",
+						AsName: "Farck",
+					},
+				},
+				From: ast.Str{Value: frompath},
+			},
+		},
+		"onlylist": {
+			want: `export {
+  AnnotationQuery,
+  VariableModel as Farck
+};`,
+			input: ast.ExportNamedSet{
+				Exports: []ast.NamedSpecifier{
+					{
+						Name: "AnnotationQuery",
+					},
+					{
+						Name:   "VariableModel",
+						AsName: "Farck",
+					},
+				},
+			},
+		},
+		"listfrom": {
+			want: `export {
+  AnnotationQuery,
+  VariableModel as Farck
+} from './smoochie/goo';`,
+			input: ast.ExportNamedSet{
+				Exports: []ast.NamedSpecifier{
+					{
+						Name: "AnnotationQuery",
+					},
+					{
+						Name:   "VariableModel",
+						AsName: "Farck",
+					},
+				},
+				From: ast.Str{Value: frompath},
+			},
+		},
+		"listfromtype": {
+			want: `export type {
+  AnnotationQuery,
+  VariableModel as Farck
+} from './smoochie/goo';`,
+			input: ast.ExportNamedSet{
+				TypeOnly: true,
+				Exports: []ast.NamedSpecifier{
+					{
+						Name: "AnnotationQuery",
+					},
+					{
+						Name:   "VariableModel",
+						AsName: "Farck",
+					},
+				},
+				From: ast.Str{Value: frompath},
+			},
+		},
+	}
+
+	for nam, item := range namedsetstt {
+		iitem := item
+		t.Run(nam, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(item.want, iitem.input.String())
+		})
+	}
+}
+
+func TestExportNamespace(t *testing.T) {
+	frompath := "./smoochie/goo"
+
+	nstt := map[string]struct {
+		input ast.ExportNamespace
+		want  string
+	}{
+		"noas": {
+			want: `export * from './smoochie/goo';`,
+			input: ast.ExportNamespace{
+				From: ast.Str{Value: frompath},
+			},
+		},
+		"withas": {
+			want: `export * as bobble from './smoochie/goo';`,
+			input: ast.ExportNamespace{
+				AsName: "bobble",
+				From:   ast.Str{Value: frompath},
+			},
+		},
+	}
+
+	for nam, item := range nstt {
+		iitem := item
+		t.Run(nam, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(item.want, iitem.input.String())
+		})
+	}
+}
+
 func obj(kv ...ast.KeyValueExpr) ast.ObjectLit {
 	return ast.ObjectLit{
 		Elems: kv,

@@ -374,13 +374,89 @@ func (i InterfaceType) String() string {
 	return b.String()
 }
 
-type ExportStmt struct {
-	Decl Decl
+type ExportKeyword struct {
+	Decl    Decl
+	Default bool
 }
 
-func (e ExportStmt) decl() {}
-func (e ExportStmt) String() string {
-	return "export " + e.Decl.String()
+func (e ExportKeyword) decl() {}
+func (e ExportKeyword) String() string {
+	var b strings.Builder
+	b.WriteString("export ")
+	if e.Default {
+		b.WriteString("default ")
+	}
+	b.WriteString(e.Decl.String())
+	return b.String()
+}
+
+type ExportNamedSet struct {
+	TypeOnly bool
+	Exports  []NamedSpecifier
+	From     Str
+}
+
+func (e ExportNamedSet) decl() {}
+func (e ExportNamedSet) String() string {
+	var b strings.Builder
+	b.WriteString("export ")
+	if e.TypeOnly {
+		b.WriteString("type ")
+	}
+	switch len(e.Exports) {
+	case 0:
+		panic(fmt.Sprintf("ExportNamedSet with 'from' %s contains no elements to export", e.From))
+	case 1:
+		fmt.Fprintf(&b, "{ %s }", e.Exports[0])
+	default:
+		strs := make([]string, 0, len(e.Exports))
+		for _, elem := range e.Exports {
+			strs = append(strs, elem.String())
+		}
+		fmt.Fprintf(&b, "{\n%s%s\n}", Indent, strings.Join(strs, ",\n"+Indent))
+	}
+
+	if e.From.Value != "" {
+		fmt.Fprintf(&b, " from %s", e.From)
+	}
+	b.WriteString(string(EOLSemicolon))
+	return b.String()
+}
+
+// NamedSpecifier represents a single item in either an export or an import
+// list. Each of the following examples contains exactly one NamedSpecifier:
+//
+//	export { Foo as Bar } from './other/module';
+//	import { Foo } from './other/module';
+type NamedSpecifier struct {
+	Name   string
+	AsName string
+}
+
+func (e NamedSpecifier) decl() {}
+func (e NamedSpecifier) String() string {
+	var b strings.Builder
+	b.WriteString(e.Name)
+	if e.AsName != "" {
+		fmt.Fprintf(&b, " as %s", e.AsName)
+	}
+	return b.String()
+}
+
+type ExportNamespace struct {
+	AsName string
+	From   Str
+}
+
+func (e ExportNamespace) decl() {}
+func (e ExportNamespace) String() string {
+	var b strings.Builder
+	b.WriteString("export * ")
+	if e.AsName != "" {
+		fmt.Fprintf(&b, "as %s ", e.AsName)
+	}
+	fmt.Fprintf(&b, "from %s%s", e.From, EOLSemicolon)
+	return b.String()
 }
 
 // ListExpr represents lists in type definitions, like string[].
