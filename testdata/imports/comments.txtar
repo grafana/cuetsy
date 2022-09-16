@@ -1,0 +1,133 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+// comment on Out interface is a multi
+// line comment
+Out: {
+    // Local - Comments on embeddings are ignored
+    Local
+    // singleLine single line comment
+    singleLine: string
+    // multiLine comment
+    // has more than one line, whodathunk
+    multiLine: dep.NoAttrib
+} @cuetsy(kind="interface")
+
+// comment on Nested interface is single line
+Nested: {
+    // NestOnce has a before-comment
+    NestOnce: {
+        // NestTwice has a before comment and
+        // it's multiline
+        NestTwice: {
+            // tripleInner has a before comment and
+            // it's multiline
+            tripleInner: string
+        }
+    }
+} @cuetsy(kind="type")
+
+
+// EnumField is an enum kind with a jsdoc comment
+EnumField: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
+
+// StringField is a type kind with a jsdoc comment
+StringField: string @cuetsy(kind="type")
+
+Local: {
+    // Floating comment goes nowhere
+
+    localAttribField: string
+} @cuetsy(kind="interface")
+
+// comment on SimpleOnlyAbove
+SimpleOnlyAbove: int32 @cuetsy(kind="type")
+
+-- dep/file.cue --
+package dep
+
+NoAttrib: {
+    // Comment on Inner field travels with reference
+    Inner: {
+      nestedval: string
+    }
+    importedNoAttribField: string
+}
+
+-- out/gen --
+
+/**
+ * comment on Out interface is a multi
+ * line comment
+ */
+export interface Out extends Local {
+  /**
+   * multiLine comment
+   * has more than one line, whodathunk
+   */
+  multiLine: {
+    /**
+     * Comment on Inner field travels with reference
+     */
+    Inner: {
+      nestedval: string;
+    };
+    importedNoAttribField: string;
+  };
+  /**
+   * singleLine single line comment
+   */
+  singleLine: string;
+}
+
+/**
+ * comment on Nested interface is single line
+ */
+export type Nested = {
+  /**
+   * NestOnce has a before-comment
+   */
+  NestOnce: {
+    /**
+     * NestTwice has a before comment and
+     * it's multiline
+     */
+    NestTwice: {
+      /**
+       * tripleInner has a before comment and
+       * it's multiline
+       */
+      tripleInner: string,
+    },
+  },
+};
+
+/**
+ * EnumField is an enum kind with a jsdoc comment
+ */
+export enum EnumField {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+
+export const defaultEnumField: EnumField = EnumField.Baz;
+
+/**
+ * StringField is a type kind with a jsdoc comment
+ */
+export type StringField = string;
+
+export interface Local {
+  localAttribField: string;
+}
+
+/**
+ * comment on SimpleOnlyAbove
+ */
+export type SimpleOnlyAbove = number;

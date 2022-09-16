@@ -111,7 +111,7 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 
 	var file ts.File
 	for iter.Next() {
-		n := g.decl(iter.Label(), iter.Value())
+		n := g.decl(iter.Selector().String(), iter.Value())
 		file.Nodes = append(file.Nodes, n...)
 	}
 
@@ -235,11 +235,12 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	ret := make([]ts.Decl, 2)
 
 	ret[0] = tsast.TypeDecl{
-		Name: ts.Ident(name),
-		Type: tsast.BasicType{Expr: ts.Union(tokens...)},
+		Name:    ts.Ident(name),
+		Type:    tsast.BasicType{Expr: ts.Union(tokens...)},
+		Comment: commentsFor(v, true),
 	}
 	if g.c.Export {
-		ret[0] = ts.Export(ret[0])
+		ret[0] = tsast.Export(ret[0])
 	}
 
 	d, ok := v.Default()
@@ -266,7 +267,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 
 	ret[1] = def
 	if g.c.Export {
-		ret[1] = ts.Export(def)
+		ret[1] = tsast.Export(def)
 	}
 	return ret
 }
@@ -280,6 +281,7 @@ type KV struct {
 //     if memberNames is absent, then keys implicitly generated as CamelCase
 //   - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
+	vdoc := v.Doc()
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -300,30 +302,33 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 		g.addErr(err)
 	}
 
-	T := ts.Export(
-		tsast.TypeDecl{
-			Name: ts.Ident(name),
-			Type: tsast.EnumType{Elems: exprs},
-		},
-	)
+	ret := make([]ts.Decl, 2)
+	ret[0] = tsast.TypeDecl{
+		Name:    ts.Ident(name),
+		Type:    tsast.EnumType{Elems: exprs},
+		Comment: commentsForGroup(vdoc, true),
+	}
+
+	if g.c.Export {
+		ret[0] = tsast.Export(ret[0])
+	}
 
 	defaultIdent, err := enumDefault(v)
-	if err != nil {
-		g.addErr(err)
-	}
+	g.addErr(err)
 
 	if defaultIdent == nil {
-		return []ts.Decl{T}
+		return ret[:1]
 	}
 
-	D := ts.Export(
-		tsast.VarDecl{
-			Names: ts.Names("default" + name),
-			Type:  ts.Ident(name),
-			Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: *defaultIdent},
-		},
-	)
-	return []ts.Decl{T, D}
+	ret[1] = tsast.VarDecl{
+		Names: ts.Names("default" + name),
+		Type:  ts.Ident(name),
+		Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: *defaultIdent},
+	}
+	if g.c.Export {
+		ret[1] = tsast.Export(ret[1])
+	}
+	return ret
 }
 
 func enumDefault(v cue.Value) (*tsast.Ident, error) {
@@ -589,8 +594,9 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		}
 
 		elems = append(elems, tsast.KeyValueExpr{
-			Key:   ts.Ident(k),
-			Value: tref.T,
+			Key:     ts.Ident(k),
+			Value:   tref.T,
+			Comment: commentsFor(iter.Value(), true),
 		})
 
 		if tref.D != nil {
@@ -639,9 +645,10 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			Elems:   elems,
 			Extends: extends,
 		},
+		Comment: commentsFor(v, true),
 	}
 	if g.c.Export {
-		ret[0] = ts.Export(ret[0])
+		ret[0] = tsast.Export(ret[0])
 	}
 
 	if len(defs) == 0 {
@@ -658,7 +665,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	}
 
 	if g.c.Export {
-		ret[1] = ts.Export(ret[1])
+		ret[1] = tsast.Export(ret[1])
 	}
 
 	return ret
@@ -730,9 +737,7 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 	if exists {
 		tref.D = defExpr
 	}
-	if err != nil {
-		g.addErr(err)
-	}
+	g.addErr(err)
 	return tref, err
 }
 
@@ -932,8 +937,9 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 					k += "?"
 				}
 				kvs = append(kvs, tsast.KeyValueExpr{
-					Key:   ts.Ident(k),
-					Value: expr,
+					Key:     ts.Ident(k),
+					Value:   expr,
+					Comment: commentsFor(iter.Value(), true),
 				})
 			}
 
@@ -1249,4 +1255,22 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 	}
 
 	return nil, nil
+}
+
+func commentsForGroup(cgs []*ast.CommentGroup, jsdoc bool) []tsast.Comment {
+	if cgs == nil {
+		return nil
+	}
+	ret := make([]tsast.Comment, 0, len(cgs))
+	for _, cg := range cgs {
+		if cg.Line {
+			panic("hit it")
+		}
+		ret = append(ret, ts.CommentFromCUEGroup(cg, jsdoc))
+	}
+	return ret
+}
+
+func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
+	return commentsForGroup(v.Doc(), jsdoc)
 }

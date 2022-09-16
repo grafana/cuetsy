@@ -28,11 +28,14 @@ const (
 type EOL string
 
 const (
+	EOLNone      EOL = ""
 	EOLComma     EOL = `,`
 	EOLSemicolon EOL = `;`
 )
 
 type File struct {
+	// file-level doc. Printed first at start of file, if non-nil
+	Doc     *Comment
 	Imports []ImportSpec
 	Nodes   []Decl
 }
@@ -40,13 +43,19 @@ type File struct {
 func (f File) String() string {
 	var b strings.Builder
 
+	if f.Doc != nil {
+		b.WriteString(f.Doc.String() + "\n\n")
+	}
+
 	for _, i := range f.Imports {
-		b.WriteString(i.String())
+		b.WriteString(formatInner(EOLNone, 0, i))
+		// b.WriteString(i.String())
 		b.WriteString("\n\n")
 	}
 
 	for i, n := range f.Nodes {
-		b.WriteString(n.String())
+		b.WriteString(formatInner(EOLNone, 0, n))
+		// b.WriteString(n.String())
 
 		if i+1 < len(f.Nodes) {
 			b.WriteString("\n\n")
@@ -60,6 +69,18 @@ func (f File) String() string {
 type Node interface {
 	fmt.Stringer
 }
+
+type Commenter interface {
+	Comments() []Comment
+	hoistComments() []Comment
+}
+
+var (
+	_ Commenter = KeyValueExpr{}
+	_ Commenter = ObjectLit{}
+	_ Commenter = VarDecl{}
+	_ Commenter = TypeDecl{}
+)
 
 type innerStringer interface {
 	innerString(eol EOL, lvl int) string
@@ -147,7 +168,7 @@ func (n Names) String() string {
 	case 0:
 		panic("Names.Idents must not be empty")
 	case 1:
-		return n.Idents[0].String()
+		return format(n.Idents[0])
 	}
 
 	b := n.Brack
@@ -189,17 +210,26 @@ func (a AssignExpr) String() string {
 }
 
 type KeyValueExpr struct {
-	Key   Expr
-	Value Expr
+	Comment []Comment
+	Key     Expr
+	Value   Expr
 }
 
+func (k KeyValueExpr) Comments() []Comment {
+	return k.Comment
+}
+func (k KeyValueExpr) hoistComments() []Comment {
+	var ret []Comment
+	ret, k.Comment = splitComments(k.Comment)
+	return ret
+}
 func (k KeyValueExpr) expr() {}
 func (k KeyValueExpr) String() string {
 	return k.innerString(EOL(""), 0)
 }
 
 func (k KeyValueExpr) innerString(eol EOL, lvl int) string {
-	return fmt.Sprintf("%s: %s", k.Key, innerString(eol, lvl, k.Value))
+	return fmt.Sprintf("%s: %s", k.Key, formatInner(eol, lvl, k.Value))
 }
 
 type ParenExpr struct {
@@ -212,7 +242,7 @@ func (p ParenExpr) String() string {
 }
 
 func (p ParenExpr) innerString(eol EOL, lvl int) string {
-	return fmt.Sprintf("(%s)", innerString(eol, lvl, p.Expr))
+	return fmt.Sprintf("(%s)", formatInner(eol, lvl, p.Expr))
 }
 
 type UnaryExpr struct {
@@ -222,7 +252,7 @@ type UnaryExpr struct {
 
 func (u UnaryExpr) expr() {}
 func (u UnaryExpr) String() string {
-	return u.Op + u.Expr.String()
+	return u.Op + format(u.Expr)
 }
 
 type BinaryExpr struct {
@@ -236,7 +266,7 @@ func (b BinaryExpr) String() string {
 }
 
 func (b BinaryExpr) innerString(eol EOL, lvl int) string {
-	return fmt.Sprintf("%s %s %s", innerString(eol, lvl, b.X), b.Op, innerString(eol, lvl+1, b.Y))
+	return fmt.Sprintf("%s %s %s", formatInner(eol, lvl, b.X), b.Op, formatInner(eol, lvl+1, b.Y))
 }
 
 type TypeTransformExpr struct {
@@ -285,10 +315,19 @@ type VarDecl struct {
 	Tok string
 
 	Names
-	Type  Expr
-	Value Expr
+	Type    Expr
+	Value   Expr
+	Comment []Comment
 }
 
+func (v VarDecl) Comments() []Comment {
+	return v.Comment
+}
+func (v VarDecl) hoistComments() []Comment {
+	var ret []Comment
+	ret, v.Comment = splitComments(v.Comment)
+	return ret
+}
 func (v VarDecl) decl() {}
 func (v VarDecl) String() string {
 	tok := v.Tok
@@ -311,10 +350,19 @@ var (
 )
 
 type TypeDecl struct {
-	Name Ident
-	Type Type
+	Name    Ident
+	Type    Type
+	Comment []Comment
 }
 
+func (t TypeDecl) Comments() []Comment {
+	return t.Comment
+}
+func (t TypeDecl) hoistComments() []Comment {
+	var ret []Comment
+	ret, t.Comment = splitComments(t.Comment)
+	return ret
+}
 func (t TypeDecl) decl() {}
 func (t TypeDecl) String() string {
 	return fmt.Sprintf("%s %s %s", t.Type.typeName(), t.Name, t.Type)
@@ -322,8 +370,12 @@ func (t TypeDecl) String() string {
 
 type BasicType struct {
 	Expr Expr
+	// Comment []Comment
 }
 
+//	func (b BasicType) Comments() []Comment {
+//		return b.Comment
+//	}
 func (b BasicType) typeName() string { return "type" }
 func (b BasicType) String() string {
 	return fmt.Sprintf("= %s;", b.Expr)
@@ -331,8 +383,12 @@ func (b BasicType) String() string {
 
 type EnumType struct {
 	Elems []Expr
+	// Comment []Comment
 }
 
+//	func (e EnumType) Comments() []Comment {
+//		return e.Comment
+//	}
 func (e EnumType) typeName() string { return "enum" }
 func (e EnumType) String() string {
 	var b strings.Builder
@@ -342,7 +398,7 @@ func (e EnumType) String() string {
 	}
 	for _, e := range e.Elems {
 		b.WriteString(Indent)
-		b.WriteString(e.String())
+		b.WriteString(format(e))
 		b.WriteString(",\n")
 	}
 	b.WriteString("}")
@@ -363,13 +419,13 @@ func (i InterfaceType) String() string {
 			if i != 0 {
 				b.WriteString(", ")
 			}
-			b.WriteString(s.String())
+			b.WriteString(format(s))
 		}
 		b.WriteString(" ")
 	}
 
 	obj := ObjectLit{Elems: i.Elems, eol: EOLSemicolon}
-	b.WriteString(obj.String())
+	b.WriteString(format(obj))
 
 	return b.String()
 }
@@ -377,8 +433,17 @@ func (i InterfaceType) String() string {
 type ExportKeyword struct {
 	Decl    Decl
 	Default bool
+	Comment []Comment
 }
 
+func (e ExportKeyword) Comments() []Comment {
+	return e.Comment
+}
+func (e ExportKeyword) hoistComments() []Comment {
+	var ret []Comment
+	ret, e.Comment = splitComments(e.Comment)
+	return ret
+}
 func (e ExportKeyword) decl() {}
 func (e ExportKeyword) String() string {
 	var b strings.Builder
@@ -468,15 +533,78 @@ func (l ListExpr) expr() {}
 func (l ListExpr) String() string {
 	return "Array<" + l.Expr.String() + ">"
 }
+
 func (l ListExpr) innerString(eol EOL, lvl int) string {
-	return "Array<" + innerString(eol, lvl, l.Expr) + ">"
+	return "Array<" + formatInner(eol, lvl, l.Expr) + ">"
 }
 
 type ImportSpec struct {
-	From Str
-	Names
+	TypeOnly bool
+	Imports  []NamedSpecifier
+	// Only used for the namespace-form import, when Imports is empty
+	AsName string
+	From   Str
 }
 
-func (i ImportSpec) String() string {
-	return fmt.Sprintf("import %s from %s;", i.Names, i.From)
+func (e ImportSpec) decl() {}
+func (e ImportSpec) String() string {
+	var b strings.Builder
+	b.WriteString("import ")
+	if e.TypeOnly {
+		b.WriteString("type ")
+	}
+	switch len(e.Imports) {
+	case 0:
+		fmt.Fprintf(&b, "* as %s", e.AsName)
+	case 1:
+		fmt.Fprintf(&b, "{ %s }", e.Imports[0])
+	default:
+		strs := make([]string, 0, len(e.Imports))
+		for _, elem := range e.Imports {
+			strs = append(strs, elem.String())
+		}
+		fmt.Fprintf(&b, "{\n%s%s\n}", Indent, strings.Join(strs, ",\n"+Indent))
+	}
+
+	fmt.Fprintf(&b, " from %s%s", e.From, EOLSemicolon)
+	return b.String()
+}
+
+type Comment struct {
+	Text string // text of comment, excluding '\n' for //-style
+	Pos  CommentPosition
+}
+
+func (c Comment) String() string {
+	return c.Text
+}
+
+func (c Comment) innerString(eol EOL, lvl int) string {
+	return strings.Replace(c.Text, "\n", "\n"+strings.Repeat(Indent, lvl), -1)
+}
+
+// CommentPosition indicates the position at which a comment should be printed,
+// relative to its associated Node.
+type CommentPosition int
+
+const (
+	// CommentAbove places a comment on a new line above the associated Node,
+	// preserving indentation.
+	CommentAbove CommentPosition = iota
+	// CommentInline places a comment inline following the associated Node.
+	CommentInline
+	// CommentBelow places a comment after the associated Node, on a new line,
+	// preserving indentation.
+	CommentBelow
+)
+
+func splitComments(cs []Comment) (above, other []Comment) {
+	for _, c := range cs {
+		if c.Pos == CommentAbove {
+			above = append(above, c)
+		} else {
+			other = append(other, c)
+		}
+	}
+	return
 }

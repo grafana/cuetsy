@@ -14,11 +14,7 @@ func tpv(v cue.Value) {
 
 func isReference(v cue.Value) bool {
 	_, path := v.ReferencePath()
-	if len(path.Selectors()) > 0 {
-		return true
-	}
-
-	return false
+	return len(path.Selectors()) > 0
 }
 
 func getKindFor(v cue.Value) (TSType, error) {

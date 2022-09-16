@@ -1,17 +1,28 @@
 package ast
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 )
 
 type ObjectLit struct {
-	Elems  []KeyValueExpr
-	IsType bool
+	Comment []Comment
+	Elems   []KeyValueExpr
+	IsType  bool
 
 	eol EOL
 	lvl int
 }
 
+func (o ObjectLit) Comments() []Comment {
+	return o.Comment
+}
+func (o ObjectLit) hoistComments() []Comment {
+	var ret []Comment
+	ret, o.Comment = splitComments(o.Comment)
+	return ret
+}
 func (o ObjectLit) expr() {}
 func (o ObjectLit) String() string {
 	if len(o.eol) == 0 {
@@ -42,7 +53,7 @@ func (o ObjectLit) innerString(aeol EOL, lvl int) string {
 	write("{\n")
 	for _, e := range o.Elems {
 		indent(lvl)
-		write(innerString(aeol, lvl, e))
+		write(formatInner(aeol, lvl, e))
 		write(eol)
 	}
 
@@ -52,15 +63,51 @@ func (o ObjectLit) innerString(aeol EOL, lvl int) string {
 	return b.String()
 }
 
-type ListLit struct {
-	Elems []Expr
+func format(n Node) string {
+	return formatInner(EOLSemicolon, 0, n)
 }
 
-func innerString(eol EOL, lvl int, e Expr) string {
-	if x, ok := e.(innerStringer); ok {
-		return x.innerString(eol, lvl)
+// formatInner prints an ast Node with eol sensitivity and indentation leveling.
+func formatInner(eol EOL, lvl int, n Node) string {
+	prinner := func(eol EOL, lvl int, n fmt.Stringer) string {
+		if x, ok := n.(innerStringer); ok {
+			return x.innerString(eol, lvl)
+		}
+		return n.String()
 	}
-	return e.String()
+
+	com, is := n.(Commenter)
+	if !is || len(com.Comments()) == 0 {
+		return prinner(eol, lvl, n)
+	}
+	var b strings.Builder
+
+	comms := com.Comments()
+	sort.SliceStable(comms, func(i, j int) bool {
+		return comms[i].Pos < comms[j].Pos
+	})
+
+	var i int
+	for ; i < len(comms) && comms[i].Pos == CommentAbove; i++ {
+		b.WriteString(comms[i].innerString(eol, lvl))
+		b.WriteString("\n" + strings.Repeat(Indent, lvl))
+	}
+	b.WriteString(prinner(eol, lvl, n))
+
+	for ; i < len(comms) && comms[i].Pos == CommentInline; i++ {
+		b.WriteString(" " + comms[i].innerString(eol, lvl) + " ")
+	}
+
+	for ; i < len(comms); i++ {
+		b.WriteString(comms[i].innerString(eol, lvl))
+		b.WriteString("\n" + strings.Repeat(Indent, lvl))
+	}
+
+	return b.String()
+}
+
+type ListLit struct {
+	Elems []Expr
 }
 
 func (l ListLit) expr() {}
@@ -71,7 +118,7 @@ func (l ListLit) String() string {
 func (l ListLit) innerString(eol EOL, lvl int) string {
 	strs := make([]string, len(l.Elems))
 	for i, e := range l.Elems {
-		strs[i] = innerString(eol, lvl, e)
+		strs[i] = formatInner(eol, lvl, e)
 	}
 	return string(SquareBrack[0]) + strings.Join(strs, ", ") + string(SquareBrack[1])
 }

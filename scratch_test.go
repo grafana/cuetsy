@@ -416,3 +416,34 @@ func printgrouping(field string, has, not []*listField) {
 	}
 	fmt.Println()
 }
+
+// whyyyy doesn't this work?
+func testExtractComment(t *testing.T) {
+	str := `
+// comment floater
+
+withattr: string @cuetsy(kind="type") // inline withattr
+noattr: int32 // inline noattr
+`
+
+	ctx := cuecontext.New()
+	val := ctx.CompileString(str)
+	printcgs("base", val.Doc())
+
+	iter, err := val.Fields(cue.Optional(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for iter.Next() {
+		printcgs(iter.Selector().String(), iter.Value().Doc())
+	}
+}
+
+func printcgs(pre string, cgs []*ast.CommentGroup) {
+	fmt.Println(pre)
+	for _, cg := range cgs {
+		fmt.Println(cg.Text())
+	}
+	fmt.Println()
+}

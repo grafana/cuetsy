@@ -1,0 +1,43 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+Nested: {
+    // NestOnce has a before-comment
+    NestOnce: {
+        // NestTwice has a before comment and
+        // it's multiline
+        NestTwice: {
+            // tripleInner has a before comment and
+            // it's multiline
+            tripleInner: string // tripleInner has an inline comment
+        }
+    }
+} @cuetsy(kind="type") // Nested has an inline comment
+
+SimpleOnlyInline: string @cuetsy(kind="type") // comment on SimpleOnlyInline
+
+-- out/gen --
+
+export type Nested = {
+  /**
+   * NestOnce has a before-comment
+   */
+  NestOnce: {
+    /**
+     * NestTwice has a before comment and
+     * it's multiline
+     */
+    NestTwice: {
+      /**
+       * tripleInner has a before comment and
+       * it's multiline
+       */
+      tripleInner: string,
+    },
+  },
+}; // Nested has an inline comment
+
+export type SimpleOnlyInline = string;  // comment on SimpleOnlyInline
