@@ -70,6 +70,9 @@ type Config struct {
 	// If nil, any non-stdlib import in the CUE source will result in a fatal
 	// error.
 	ImportMapper
+
+	// Export determines whether generated TypeScript symbols are exported.
+	Export bool
 }
 
 // Generate takes a cue.Value and generates the corresponding TypeScript for all
@@ -114,6 +117,7 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 
 	return &file, g.err
 }
+
 func GenerateSingleAST(name string, v cue.Value, t TSType) (*DeclPair, error) {
 	g := &generator{
 		c:   Config{},
@@ -228,16 +232,19 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 		g.addErr(valError(v, "typescript types may only be generated from a single value or disjunction of values"))
 	}
 
-	T := ts.Export(
-		tsast.TypeDecl{
-			Name: ts.Ident(name),
-			Type: tsast.BasicType{Expr: ts.Union(tokens...)},
-		},
-	)
+	ret := make([]ts.Decl, 2)
+
+	ret[0] = tsast.TypeDecl{
+		Name: ts.Ident(name),
+		Type: tsast.BasicType{Expr: ts.Union(tokens...)},
+	}
+	if g.c.Export {
+		ret[0] = ts.Export(ret[0])
+	}
 
 	d, ok := v.Default()
 	if !ok {
-		return []ts.Decl{T}
+		return ret[:1]
 	}
 
 	val, err := tsprintField(d, false)
@@ -249,16 +256,19 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 		Value: val,
 	}
 
-	D := ts.Export(def)
-	// Making lists into partials changes the member type - never what we want
-	if v.IncompleteKind() != cue.ListKind {
+	// Only make struct-kinded types into partials
+	if v.IncompleteKind() == cue.StructKind {
 		def.Type = tsast.TypeTransformExpr{
 			Transform: "Partial",
 			Expr:      def.Type,
 		}
 	}
 
-	return []ts.Decl{T, D}
+	ret[1] = def
+	if g.c.Export {
+		ret[1] = ts.Export(def)
+	}
+	return ret
 }
 
 type KV struct {
@@ -621,32 +631,37 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		return defs[i].Key.String() < defs[j].Key.String()
 	})
 
-	T := ts.Export(
-		tsast.TypeDecl{
-			Name: ts.Ident(name),
-			Type: tsast.InterfaceType{
-				Elems:   elems,
-				Extends: extends,
-			},
-		},
-	)
+	ret := make([]ts.Decl, 2)
 
-	if len(defs) == 0 {
-		return []ts.Decl{T}
+	ret[0] = tsast.TypeDecl{
+		Name: ts.Ident(name),
+		Type: tsast.InterfaceType{
+			Elems:   elems,
+			Extends: extends,
+		},
+	}
+	if g.c.Export {
+		ret[0] = ts.Export(ret[0])
 	}
 
-	D := ts.Export(
-		tsast.VarDecl{
-			Names: ts.Names("default" + name),
-			Type: tsast.TypeTransformExpr{
-				Transform: "Partial",
-				Expr:      ts.Ident(name),
-			},
-			Value: tsast.ObjectLit{Elems: defs},
-		},
-	)
+	if len(defs) == 0 {
+		return ret[:1]
+	}
 
-	return []ts.Decl{T, D}
+	ret[1] = tsast.VarDecl{
+		Names: ts.Names("default" + name),
+		Type: tsast.TypeTransformExpr{
+			Transform: "Partial",
+			Expr:      ts.Ident(name),
+		},
+		Value: tsast.ObjectLit{Elems: defs},
+	}
+
+	if g.c.Export {
+		ret[1] = ts.Export(ret[1])
+	}
+
+	return ret
 }
 
 // Generate a typeRef for the cue.Value

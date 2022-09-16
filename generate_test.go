@@ -58,7 +58,9 @@ func TestGenerateWithImports(t *testing.T) {
 			t.Fatal(v.Err())
 		}
 
-		b, err := cuetsy.Generate(v, cuetsy.Config{})
+		b, err := cuetsy.Generate(v, cuetsy.Config{
+			Export: true,
+		})
 		if err != nil {
 			errors.Print(t, err, nil)
 			t.Fatal(errors.Details(err, nil))
@@ -81,7 +83,9 @@ func TestGenerate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			out, err := cuetsy.Generate(i.Value(), cuetsy.Config{})
+			out, err := cuetsy.Generate(i.Value(), cuetsy.Config{
+				Export: true,
+			})
 			if c.CaseType == ErrorType {
 				assert.Error(t, err, c.ERROR)
 			} else {
