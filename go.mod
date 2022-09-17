@@ -5,7 +5,7 @@ go 1.16
 require (
 	cuelang.org/go v0.4.3
 	github.com/google/go-cmp v0.5.6
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/text v0.2.0
 	github.com/matryer/is v1.4.0
 	github.com/rogpeppe/go-internal v1.8.1
 	github.com/stretchr/testify v1.7.1 // indirect
