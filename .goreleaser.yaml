@@ -10,6 +10,8 @@ builds:
       - linux
       - windows
       - darwin
+    binary: cuetsy
+    main: ./cmd/cuetsy
 archives:
   - replacements:
       darwin: Darwin
