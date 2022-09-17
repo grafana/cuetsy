@@ -447,3 +447,61 @@ func printcgs(pre string, cgs []*ast.CommentGroup) {
 	}
 	fmt.Println()
 }
+
+func testRelDisjunct(t *testing.T) {
+	str := `disj: "foo" | "bar"
+check: {
+  member: "foo"
+  notmember: "baz"
+  subsumer: string
+  wider: "foo" | "bar" | "baz"
+  partialOverlap: "foo" | "baz"
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(str)
+
+	dv := val.LookupPath(cue.ParsePath("disj"))
+	iter, err := val.LookupPath(cue.ParsePath("check")).Fields()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for iter.Next() {
+		checkv := iter.Value()
+		t.Run(iter.Selector().String(), func(t *testing.T) {
+			// t.Run(valForTestName(iter.Value()), func(t *testing.T) {
+			t.Run("subsume", func(t *testing.T) {
+				subt := func(a, b cue.Value) func(t *testing.T) {
+					return func(t *testing.T) {
+						t.Logf("(%#v)⊑(%#v)", a, b)
+						logif(t, "NOOPTS:", a.Subsume(b))
+						logif(t, "RAW:", a.Subsume(b, cue.Raw()))
+						logif(t, "CONCRETE:", a.Subsume(b, cue.Concrete(true)))
+						logif(t, "RAW|CONCRETE:", a.Subsume(b, cue.Raw(), cue.Concrete(true)))
+						logif(t, "FINAL:", a.Subsume(b, cue.Final()))
+						logif(t, "RAW|FINAL:", a.Subsume(b, cue.Raw(), cue.Final()))
+						logif(t, "CONCRETE|FINAL:", a.Subsume(b, cue.Concrete(true), cue.Final()))
+						logif(t, "RAW|CONCRETE|FINAL:", a.Subsume(b, cue.Raw(), cue.Concrete(true), cue.Final()))
+					}
+				}
+				t.Run("d(c)", subt(dv, checkv))
+				t.Run("c(d)", subt(checkv, dv))
+			})
+		})
+		t.Run("concrete", func(t *testing.T) {
+			t.Logf("%#v is concrete: %v", checkv, checkv.IsConcrete())
+		})
+	}
+}
+
+func logif(t *testing.T, fmt string, err error) {
+	t.Helper()
+	if err != nil {
+		t.Log(fmt, err)
+	}
+}
+
+func valForTestName(v cue.Value) string {
+	return strings.Replace(fmt.Sprintf("%#v", v), " ", "", -1)
+}

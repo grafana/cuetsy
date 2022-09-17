@@ -165,6 +165,10 @@ func flatten(v cue.Value) []cue.Value {
 
 	op, dvals := v.Expr()
 	defv, has := v.Default()
+	// if (op != cue.NoOp || has) &&
+	// 	v.Subsume(defv, cue.Raw()) != nil &&
+	// 	defv.Subsume(v, cue.Raw()) != nil {
+	// FIXME clearly wrong for using Equals(), but referencesValueAs currently depends on its wrong-ness
 	if !v.Equals(defv) && (op != cue.NoOp || has) {
 		all = append(all, dvals...)
 		for _, dv := range dvals {
@@ -184,7 +188,9 @@ func findRefWithKind(v cue.Value, kinds ...TSType) (ref, referrer cue.Value, has
 
 		if !has && targetsKind(n.self, kinds...) {
 			ref = n.self
-			referrer = n.parent.self
+			if n.parent != nil {
+				referrer = n.parent.self
+			}
 			has = true
 		}
 		return !has
@@ -399,4 +405,17 @@ func (l *listField) String() string {
 	fmt.Fprintf(&buf, "\targBottomKinded: %v\n", l.props.argBottomKinded)
 
 	return buf.String()
+}
+
+func veq(a, b cue.Value) bool {
+	// Theoretically, lattice equality can be defined as mutual subsumption. In
+	// practice, Subsume() seems to ignore optional fields, and Equals() doesn't.
+	//
+	// But, Equals has false positives on cases involving incomplete values. It does
+	// not seem to have any false negatives. So, use both and cross fingers.
+	return a.Exists() &&
+		b.Exists() &&
+		a.Equals(b) &&
+		a.Subsume(b, cue.Raw()) == nil &&
+		b.Subsume(a, cue.Raw()) == nil
 }

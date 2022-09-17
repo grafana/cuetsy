@@ -97,8 +97,6 @@ func (n *exprNode) Walk(f func(x *exprNode) bool) {
 	if n.dfault != nil {
 		n.dfault.Walk(f)
 	}
-
-	return
 }
 
 func (n *exprNode) String() string {

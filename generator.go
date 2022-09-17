@@ -103,7 +103,7 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 
 	iter, err := val.Fields(
 		cue.Definitions(true),
-		cue.Concrete(false),
+		cue.Optional(true),
 	)
 	if err != nil {
 		return nil, err
@@ -605,29 +605,6 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 				Value: tref.D,
 			})
 		}
-
-		// expr, err := tsprintField(iter.Value())
-		// if err != nil {
-		// 	g.addErr(err)
-		// 	return nil
-		// }
-		//
-		// elems = append(elems, tsast.KeyValueExpr{
-		// 	Key:   ts.Ident(k),
-		// 	Value: expr,
-		// })
-		//
-		// exists, defExpr, err := tsPrintDefault(iter.Value())
-		// g.addErr(err)
-		//
-		// if !exists {
-		// 	continue
-		// }
-		//
-		// defs = append(defs, tsast.KeyValueExpr{
-		// 	Key:   ts.Ident(strings.TrimSuffix(k, "?")),
-		// 	Value: defExpr,
-		// })
 	}
 
 	sort.Slice(elems, func(i, j int) bool {
@@ -676,6 +653,15 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 	tref := &typeRef{}
 	var err error
 
+	// Check if we've got an enum reference at top depth or one down. If we do, it
+	// changes how we generate.
+	if containsPred(v, 1,
+		isReference,
+		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
+	) {
+		return g.genEnumReference(v)
+	}
+
 	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
 	if !containsCuetsyReference(v) {
 		tref.T, err = tsprintField(v, true)
@@ -684,15 +670,6 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 			return nil, err
 		}
 	} else {
-		// Check if we've got an enum reference at top depth or one down. If we do, it
-		// changes how we generate.
-		if containsPred(v, 1,
-			isReference,
-			func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
-		) {
-			return g.genEnumReference(v)
-		}
-
 		expr, err := tsprintField(v, true)
 		if err != nil {
 			g.addErr(err)
@@ -743,29 +720,11 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 
 // Generate a typeref for a value that refers to a field
 func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
-	conjuncts := appendSplit(nil, cue.AndOp, v)
-	if len(conjuncts) > 1 {
-		// For now, just don't allow conjuncts with enums anywhere in them.
-		ve := valError(v, "unifications containing references to enums are not currently supported")
-		g.addErr(ve)
-		return nil, ve
-	}
-	// Search the expr tree for the actual enum. This approach is uncomfortable
-	// without having the assurance that there aren't more than one possible match/a
-	// guarantee from the CUE API of a stable, deterministic search order, etc.
-	ev, referrer, has := findRefWithKind(v, TypeEnum)
-	if !has {
-		ve := valError(v, "no enum attr")
-		g.addErr(ve)
-		return nil, fmt.Errorf("no enum attr in %s", v)
-	}
+	var lit *cue.Value
 
-	var defaultIdent *tsast.Ident
-	var err error
-	defv, hasdef := v.Default()
-	if hasdef {
-		if ev.Subsume(defv) != nil {
-			err = valError(v, "defaults applied to an enum must be members of that enum")
+	findIdent := func(ev, tv cue.Value) (*tsast.Ident, error) {
+		if ev.Subsume(tv) != nil {
+			err := valError(v, "may only apply values to an enum that are members of that enum; %#v is not a member of %#v", tv, ev)
 			g.addErr(err)
 			return nil, err
 		}
@@ -773,52 +732,96 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		if err != nil {
 			return nil, err
 		}
-		var found bool
 		for _, pair := range pairs {
-			if pair.val.Equals(defv) {
-				found = true
-				defaultIdent = &tsast.Ident{Name: pair.name}
-				break
+			if veq(pair.val, tv) {
+				return &tsast.Ident{Name: pair.name}, nil
 			}
 		}
 
-		if !found {
-			err = valError(v, "default value %s is not a member of the enum", defv)
-			g.addErr(err)
-			return nil, err
-		}
+		panic(fmt.Sprintf("unreachable - %#v not equal to any member of %#v, but should have been caught by subsume check", tv, ev))
 	}
 
-	decls := g.genEnum("foo", ev)
-
-	ref := &typeRef{}
-	switch len(decls) {
+	conjuncts := appendSplit(nil, cue.AndOp, v)
+	switch len(conjuncts) {
 	case 0:
-		return nil, errors.New("not an enum")
+		panic("unreachable")
+	case 1:
+	case 2:
+		// The only case we actually want to support, at least for now, is this:
+		//
+		//   enum: "foo" | "bar" @cuetsy(kind="enum")
+		//   enumref: enum & "foo" @cuetsy(kind="type")
+		//
+		// Where we render enumref to TS as `Enumref: Enum.Foo`.
+		// For that case, we allow at most two conjuncts, and make sure they
+		// fit the pattern of the two operands above.
+		aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
+		aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
+		var cr cue.Value
+		if aref {
+			cr, lit = conjuncts[0], &(conjuncts[1])
+		} else {
+			cr, lit = conjuncts[1], &(conjuncts[0])
+		}
+		if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
+			ve := valError(v, "may only unify a referenced enum with a concrete literal member of that enum")
+			g.addErr(ve)
+			return nil, ve
+		}
+
+	default:
+		ve := valError(v, "complex unifications containing references to enums are not currently supported")
+		g.addErr(ve)
+		return nil, ve
+	}
+
+	// Search the expr tree for the actual enum. This approach is uncomfortable
+	// without having the assurance that there aren't more than one possible match/a
+	// guarantee from the CUE API of a stable, deterministic search order, etc.
+	ev, referrer, has := findRefWithKind(v, TypeEnum)
+	if !has {
+		ve := valError(v, "does not reference a field with a cuetsy enum attribute")
+		g.addErr(ve)
+		return nil, fmt.Errorf("no enum attr in %s", v)
+	}
+
+	var err error
+	decls := g.genEnum("foo", ev)
+	ref := &typeRef{}
+
+	// Construct the type component of the reference
+	switch len(decls) {
+	default:
+		ve := valError(v, "unsupported number of expression args (%v) in reference, expected 1 or 2", len(decls))
+		g.addErr(ve)
+		return nil, ve
 	case 1, 2:
 		ref.T, err = referenceValueAs(referrer)
 		if err != nil {
 			panic(err)
 		}
-		// op, args := referrer.Expr()
-		// selstr, _ := args[0].String()
-		// if op == cue.SelectorOp {
-		// 	exprstr, _ := args[1].String()
-		// 	ref.T = tsast.SelectorExpr{
-		// 		Sel:  ts.Ident(selstr),
-		// 		Expr: ts.Ident(exprstr),
-		// 	}
-		// } else {
-		// 	ref.T = ts.Ident(selstr)
-		// }
+	}
 
-		if hasdef {
-			ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
+	// Either specify a default if one exists (one conjunct), or rewrite the type to
+	// reference one of the members of the enum (two conjuncts).
+	switch len(conjuncts) {
+	case 1:
+		if defv, hasdef := v.Default(); hasdef {
+			if defaultIdent, err := findIdent(ev, defv); err == nil {
+				ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
+			} else {
+				return nil, err
+			}
 		}
-	default:
-		ve := valError(v, "unsupported number of expression args")
-		g.addErr(ve)
-		return nil, ve
+	case 2:
+		if typeIdent, err := findIdent(ev, *lit); err == nil {
+			ref.T = tsast.SelectorExpr{
+				Expr: ref.T,
+				Sel:  *typeIdent,
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	return ref, nil

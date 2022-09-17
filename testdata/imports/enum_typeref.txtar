@@ -1,0 +1,39 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+Enum: "foo" | "bar" | *"baz" @cuetsy(kind="enum")
+EnumNumeric: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
+I: {
+    TSRef: Enum & "foo"
+    TNRef: EnumNumeric & 2
+} @cuetsy(kind="interface")
+
+
+// TNRef: EnumNumeric & 2 @cuetsy(kind="type")
+// TSRef: Enum & "foo" @cuetsy(kind="type")
+
+-- out/gen --
+
+export enum Enum {
+  Bar = 'bar',
+  Baz = 'baz',
+  Foo = 'foo',
+}
+
+export const defaultEnum: Enum = Enum.Baz;
+
+export enum EnumNumeric {
+  Bar = 2,
+  Foo = 1,
+  Zip = 3,
+}
+
+export const defaultEnumNumeric: EnumNumeric = EnumNumeric.Foo;
+
+export interface I {
+  TNRef: EnumNumeric.Bar;
+  TSRef: Enum.Foo;
+}
