@@ -207,13 +207,13 @@ func (a AssignExpr) String() string {
 }
 
 type KeyValueExpr struct {
-	Comment []Comment
-	Key     Expr
-	Value   Expr
+	Key         Expr
+	Value       Expr
+	CommentList []Comment
 }
 
 func (k KeyValueExpr) Comments() []Comment {
-	return k.Comment
+	return k.CommentList
 }
 func (k KeyValueExpr) expr() {}
 func (k KeyValueExpr) String() string {
@@ -307,14 +307,14 @@ type VarDecl struct {
 	Tok string
 
 	Names
-	Type    Expr
-	Value   Expr
-	Comment []Comment
-	Export  bool
+	Type        Expr
+	Value       Expr
+	CommentList []Comment
+	Export      bool
 }
 
 func (v VarDecl) Comments() []Comment {
-	return v.Comment
+	return v.CommentList
 }
 func (v VarDecl) decl() {}
 func (v VarDecl) String() string {
@@ -342,14 +342,14 @@ var (
 )
 
 type TypeDecl struct {
-	Name    Ident
-	Type    Type
-	Comment []Comment
-	Export  bool
+	Name        Ident
+	Type        Type
+	CommentList []Comment
+	Export      bool
 }
 
 func (t TypeDecl) Comments() []Comment {
-	return t.Comment
+	return t.CommentList
 }
 func (t TypeDecl) decl() {}
 func (t TypeDecl) String() string {
@@ -416,13 +416,13 @@ func (i InterfaceType) String() string {
 }
 
 type ExportKeyword struct {
-	Decl    Decl
-	Default bool
-	Comment []Comment
+	Decl        Decl
+	Default     bool
+	CommentList []Comment
 }
 
 func (e ExportKeyword) Comments() []Comment {
-	return e.Comment
+	return e.CommentList
 }
 func (e ExportKeyword) decl() {}
 func (e ExportKeyword) String() string {
@@ -436,11 +436,15 @@ func (e ExportKeyword) String() string {
 }
 
 type ExportSet struct {
-	TypeOnly bool
-	Exports  Idents
-	From     Str
+	TypeOnly    bool
+	Exports     Idents
+	From        Str
+	CommentList []Comment
 }
 
+func (e ExportSet) Comments() []Comment {
+	return e.CommentList
+}
 func (e ExportSet) decl() {}
 func (e ExportSet) String() string {
 	var b strings.Builder
@@ -469,10 +473,14 @@ func (e ExportSet) String() string {
 }
 
 type ExportNamespace struct {
-	AsName string
-	From   Str
+	AsName      string
+	From        Str
+	CommentList []Comment
 }
 
+func (e ExportNamespace) Comments() []Comment {
+	return e.CommentList
+}
 func (e ExportNamespace) decl() {}
 func (e ExportNamespace) String() string {
 	var b strings.Builder
@@ -502,10 +510,14 @@ type ImportSpec struct {
 	TypeOnly bool
 	Imports  Idents
 	// Only used for the namespace-form import, when Imports is empty
-	AsName string
-	From   Str
+	AsName      string
+	From        Str
+	CommentList []Comment
 }
 
+func (i ImportSpec) Comments() []Comment {
+	return i.CommentList
+}
 func (i ImportSpec) decl() {}
 func (i ImportSpec) String() string {
 	var b strings.Builder

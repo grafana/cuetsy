@@ -235,10 +235,10 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	ret := make([]ts.Decl, 2)
 
 	ret[0] = tsast.TypeDecl{
-		Name:    ts.Ident(name),
-		Type:    tsast.BasicType{Expr: ts.Union(tokens...)},
-		Comment: commentsFor(v, true),
-		Export:  g.c.Export,
+		Name:        ts.Ident(name),
+		Type:        tsast.BasicType{Expr: ts.Union(tokens...)},
+		CommentList: commentsFor(v, true),
+		Export:      g.c.Export,
 	}
 
 	d, ok := v.Default()
@@ -300,10 +300,10 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 
 	ret := make([]ts.Decl, 2)
 	ret[0] = tsast.TypeDecl{
-		Name:    ts.Ident(name),
-		Type:    tsast.EnumType{Elems: exprs},
-		Comment: commentsForGroup(vdoc, true),
-		Export:  g.c.Export,
+		Name:        ts.Ident(name),
+		Type:        tsast.EnumType{Elems: exprs},
+		CommentList: commentsForGroup(vdoc, true),
+		Export:      g.c.Export,
 	}
 
 	defaultIdent, err := enumDefault(v)
@@ -585,9 +585,9 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		}
 
 		elems = append(elems, tsast.KeyValueExpr{
-			Key:     ts.Ident(k),
-			Value:   tref.T,
-			Comment: commentsFor(iter.Value(), true),
+			Key:         ts.Ident(k),
+			Value:       tref.T,
+			CommentList: commentsFor(iter.Value(), true),
 		})
 
 		if tref.D != nil {
@@ -613,8 +613,8 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			Elems:   elems,
 			Extends: extends,
 		},
-		Comment: commentsFor(v, true),
-		Export:  g.c.Export,
+		CommentList: commentsFor(v, true),
+		Export:      g.c.Export,
 	}
 
 	if len(defs) == 0 {
@@ -926,9 +926,9 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 					k += "?"
 				}
 				kvs = append(kvs, tsast.KeyValueExpr{
-					Key:     ts.Ident(k),
-					Value:   expr,
-					Comment: commentsFor(iter.Value(), true),
+					Key:         ts.Ident(k),
+					Value:       expr,
+					CommentList: commentsFor(iter.Value(), true),
 				})
 			}
 

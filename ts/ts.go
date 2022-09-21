@@ -99,7 +99,7 @@ func Bool(b bool) Expr {
 	return Ident("false")
 }
 
-// CommentFromString takes a string input and formats it as an ast.Comment.
+// CommentFromString takes a string input and formats it as an ast.CommentList.
 //
 // Line breaks are automatically inserted to minimize raggedness, with a loose
 // width limit the provided lim.
@@ -108,7 +108,7 @@ func Bool(b bool) Expr {
 // JSDoc ( /** ... */ )-style. Otherwise, ordinary comment leader ( // ... ) will
 // be used.
 //
-// The returned ast.Comment will have the default CommentAbove position.
+// The returned ast.CommentList will have the default CommentAbove position.
 func CommentFromString(s string, lim int, jsdoc bool) ast.Comment {
 	var b strings.Builder
 	prefix := func() { b.WriteString("// ") }
@@ -136,7 +136,7 @@ func CommentFromString(s string, lim int, jsdoc bool) ast.Comment {
 	}
 }
 
-// CommentFromCUEGroup creates an ast.Comment from a CUE AST CommentGroup.
+// CommentFromCUEGroup creates an ast.CommentList from a CUE AST CommentGroup.
 //
 // Original line breaks are preserved, in keeping with principles of semantic line breaks.
 func CommentFromCUEGroup(cg *cast.CommentGroup, jsdoc bool) ast.Comment {
