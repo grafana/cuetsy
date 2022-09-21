@@ -120,7 +120,7 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 
 func GenerateSingleAST(name string, v cue.Value, t TSType) (*DeclPair, error) {
 	g := &generator{
-		c:   Config{},
+		c:   Config{Export: true},
 		val: &v,
 	}
 
