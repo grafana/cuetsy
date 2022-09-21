@@ -18,11 +18,6 @@ type ObjectLit struct {
 func (o ObjectLit) Comments() []Comment {
 	return o.Comment
 }
-func (o ObjectLit) hoistComments() []Comment {
-	var ret []Comment
-	ret, o.Comment = splitComments(o.Comment)
-	return ret
-}
 func (o ObjectLit) expr() {}
 func (o ObjectLit) String() string {
 	if len(o.eol) == 0 {

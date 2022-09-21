@@ -70,7 +70,6 @@ type Node interface {
 
 type Commenter interface {
 	Comments() []Comment
-	hoistComments() []Comment
 }
 
 var (
@@ -216,11 +215,6 @@ type KeyValueExpr struct {
 func (k KeyValueExpr) Comments() []Comment {
 	return k.Comment
 }
-func (k KeyValueExpr) hoistComments() []Comment {
-	var ret []Comment
-	ret, k.Comment = splitComments(k.Comment)
-	return ret
-}
 func (k KeyValueExpr) expr() {}
 func (k KeyValueExpr) String() string {
 	return k.innerString(EOL(""), 0)
@@ -316,15 +310,11 @@ type VarDecl struct {
 	Type    Expr
 	Value   Expr
 	Comment []Comment
+	Export  bool
 }
 
 func (v VarDecl) Comments() []Comment {
 	return v.Comment
-}
-func (v VarDecl) hoistComments() []Comment {
-	var ret []Comment
-	ret, v.Comment = splitComments(v.Comment)
-	return ret
 }
 func (v VarDecl) decl() {}
 func (v VarDecl) String() string {
@@ -332,8 +322,12 @@ func (v VarDecl) String() string {
 	if tok == "" {
 		tok = "const"
 	}
-
-	return fmt.Sprintf("%s %s: %s = %s;", tok, v.Names, v.Type, v.Value)
+	b := new(strings.Builder)
+	if v.Export {
+		b.WriteString("export ")
+	}
+	fmt.Fprintf(b, "%s %s: %s = %s;", tok, v.Names, v.Type, v.Value)
+	return b.String()
 }
 
 type Type interface {
@@ -351,19 +345,20 @@ type TypeDecl struct {
 	Name    Ident
 	Type    Type
 	Comment []Comment
+	Export  bool
 }
 
 func (t TypeDecl) Comments() []Comment {
 	return t.Comment
 }
-func (t TypeDecl) hoistComments() []Comment {
-	var ret []Comment
-	ret, t.Comment = splitComments(t.Comment)
-	return ret
-}
 func (t TypeDecl) decl() {}
 func (t TypeDecl) String() string {
-	return fmt.Sprintf("%s %s %s", t.Type.typeName(), t.Name, t.Type)
+	b := new(strings.Builder)
+	if t.Export {
+		b.WriteString("export ")
+	}
+	fmt.Fprintf(b, "%s %s %s", t.Type.typeName(), t.Name, t.Type)
+	return b.String()
 }
 
 type BasicType struct {
@@ -428,11 +423,6 @@ type ExportKeyword struct {
 
 func (e ExportKeyword) Comments() []Comment {
 	return e.Comment
-}
-func (e ExportKeyword) hoistComments() []Comment {
-	var ret []Comment
-	ret, e.Comment = splitComments(e.Comment)
-	return ret
 }
 func (e ExportKeyword) decl() {}
 func (e ExportKeyword) String() string {
@@ -567,14 +557,3 @@ const (
 	// preserving indentation.
 	CommentBelow
 )
-
-func splitComments(cs []Comment) (above, other []Comment) {
-	for _, c := range cs {
-		if c.Pos == CommentAbove {
-			above = append(above, c)
-		} else {
-			other = append(other, c)
-		}
-	}
-	return
-}

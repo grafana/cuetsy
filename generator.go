@@ -238,9 +238,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 		Name:    ts.Ident(name),
 		Type:    tsast.BasicType{Expr: ts.Union(tokens...)},
 		Comment: commentsFor(v, true),
-	}
-	if g.c.Export {
-		ret[0] = tsast.Export(ret[0])
+		Export:  g.c.Export,
 	}
 
 	d, ok := v.Default()
@@ -252,9 +250,10 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	g.addErr(err)
 
 	def := tsast.VarDecl{
-		Names: ts.Names("default" + name),
-		Type:  ts.Ident(name),
-		Value: val,
+		Names:  ts.Names("default" + name),
+		Type:   ts.Ident(name),
+		Value:  val,
+		Export: g.c.Export,
 	}
 
 	// Only make struct-kinded types into partials
@@ -266,9 +265,6 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 	}
 
 	ret[1] = def
-	if g.c.Export {
-		ret[1] = tsast.Export(def)
-	}
 	return ret
 }
 
@@ -307,10 +303,7 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 		Name:    ts.Ident(name),
 		Type:    tsast.EnumType{Elems: exprs},
 		Comment: commentsForGroup(vdoc, true),
-	}
-
-	if g.c.Export {
-		ret[0] = tsast.Export(ret[0])
+		Export:  g.c.Export,
 	}
 
 	defaultIdent, err := enumDefault(v)
@@ -321,12 +314,10 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 	}
 
 	ret[1] = tsast.VarDecl{
-		Names: ts.Names("default" + name),
-		Type:  ts.Ident(name),
-		Value: tsast.SelectorExpr{Expr: ts.Ident(name), Sel: *defaultIdent},
-	}
-	if g.c.Export {
-		ret[1] = tsast.Export(ret[1])
+		Names:  ts.Names("default" + name),
+		Type:   ts.Ident(name),
+		Value:  tsast.SelectorExpr{Expr: ts.Ident(name), Sel: *defaultIdent},
+		Export: g.c.Export,
 	}
 	return ret
 }
@@ -623,9 +614,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			Extends: extends,
 		},
 		Comment: commentsFor(v, true),
-	}
-	if g.c.Export {
-		ret[0] = tsast.Export(ret[0])
+		Export:  g.c.Export,
 	}
 
 	if len(defs) == 0 {
@@ -638,11 +627,8 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			Transform: "Partial",
 			Expr:      ts.Ident(name),
 		},
-		Value: tsast.ObjectLit{Elems: defs},
-	}
-
-	if g.c.Export {
-		ret[1] = tsast.Export(ret[1])
+		Value:  tsast.ObjectLit{Elems: defs},
+		Export: g.c.Export,
 	}
 
 	return ret
