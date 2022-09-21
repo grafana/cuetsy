@@ -277,7 +277,7 @@ type KV struct {
 }
 
 // genEnum turns the following cue values into typescript enums:
-//   - value disjunction (a | b | c): values are taken as attribut memberNames,
+//   - value disjunction (a | b | c): values are taken as attribute memberNames,
 //     if memberNames is absent, then keys implicitly generated as CamelCase
 //   - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {

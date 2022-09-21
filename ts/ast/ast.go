@@ -49,13 +49,11 @@ func (f File) String() string {
 
 	for _, i := range f.Imports {
 		b.WriteString(formatInner(EOLNone, 0, i))
-		// b.WriteString(i.String())
 		b.WriteString("\n\n")
 	}
 
 	for i, n := range f.Nodes {
 		b.WriteString(formatInner(EOLNone, 0, n))
-		// b.WriteString(n.String())
 
 		if i+1 < len(f.Nodes) {
 			b.WriteString("\n\n")
@@ -153,7 +151,7 @@ type Idents []Ident
 func (i Idents) Strings() []string {
 	strs := make([]string, len(i))
 	for i, id := range i {
-		strs[i] = id.Name
+		strs[i] = id.String()
 	}
 	return strs
 }
@@ -370,12 +368,8 @@ func (t TypeDecl) String() string {
 
 type BasicType struct {
 	Expr Expr
-	// Comment []Comment
 }
 
-//	func (b BasicType) Comments() []Comment {
-//		return b.Comment
-//	}
 func (b BasicType) typeName() string { return "type" }
 func (b BasicType) String() string {
 	return fmt.Sprintf("= %s;", b.Expr)
@@ -383,12 +377,8 @@ func (b BasicType) String() string {
 
 type EnumType struct {
 	Elems []Expr
-	// Comment []Comment
 }
 
-//	func (e EnumType) Comments() []Comment {
-//		return e.Comment
-//	}
 func (e EnumType) typeName() string { return "enum" }
 func (e EnumType) String() string {
 	var b strings.Builder
@@ -455,14 +445,14 @@ func (e ExportKeyword) String() string {
 	return b.String()
 }
 
-type ExportNamedSet struct {
+type ExportSet struct {
 	TypeOnly bool
-	Exports  []NamedSpecifier
+	Exports  Idents
 	From     Str
 }
 
-func (e ExportNamedSet) decl() {}
-func (e ExportNamedSet) String() string {
+func (e ExportSet) decl() {}
+func (e ExportSet) String() string {
 	var b strings.Builder
 	b.WriteString("export ")
 	if e.TypeOnly {
@@ -470,7 +460,7 @@ func (e ExportNamedSet) String() string {
 	}
 	switch len(e.Exports) {
 	case 0:
-		panic(fmt.Sprintf("ExportNamedSet with 'from' %s contains no elements to export", e.From))
+		panic(fmt.Sprintf("ExportSet with 'from' %s contains no elements to export", e.From))
 	case 1:
 		fmt.Fprintf(&b, "{ %s }", e.Exports[0])
 	default:
@@ -485,26 +475,6 @@ func (e ExportNamedSet) String() string {
 		fmt.Fprintf(&b, " from %s", e.From)
 	}
 	b.WriteString(string(EOLSemicolon))
-	return b.String()
-}
-
-// NamedSpecifier represents a single item in either an export or an import
-// list. Each of the following examples contains exactly one NamedSpecifier:
-//
-//	export { Foo as Bar } from './other/module';
-//	import { Foo } from './other/module';
-type NamedSpecifier struct {
-	Name   string
-	AsName string
-}
-
-func (e NamedSpecifier) decl() {}
-func (e NamedSpecifier) String() string {
-	var b strings.Builder
-	b.WriteString(e.Name)
-	if e.AsName != "" {
-		fmt.Fprintf(&b, " as %s", e.AsName)
-	}
 	return b.String()
 }
 
@@ -540,33 +510,33 @@ func (l ListExpr) innerString(eol EOL, lvl int) string {
 
 type ImportSpec struct {
 	TypeOnly bool
-	Imports  []NamedSpecifier
+	Imports  Idents
 	// Only used for the namespace-form import, when Imports is empty
 	AsName string
 	From   Str
 }
 
-func (e ImportSpec) decl() {}
-func (e ImportSpec) String() string {
+func (i ImportSpec) decl() {}
+func (i ImportSpec) String() string {
 	var b strings.Builder
 	b.WriteString("import ")
-	if e.TypeOnly {
+	if i.TypeOnly {
 		b.WriteString("type ")
 	}
-	switch len(e.Imports) {
+	switch len(i.Imports) {
 	case 0:
-		fmt.Fprintf(&b, "* as %s", e.AsName)
+		fmt.Fprintf(&b, "* as %s", i.AsName)
 	case 1:
-		fmt.Fprintf(&b, "{ %s }", e.Imports[0])
+		fmt.Fprintf(&b, "{ %s }", i.Imports[0])
 	default:
-		strs := make([]string, 0, len(e.Imports))
-		for _, elem := range e.Imports {
+		strs := make([]string, 0, len(i.Imports))
+		for _, elem := range i.Imports {
 			strs = append(strs, elem.String())
 		}
 		fmt.Fprintf(&b, "{\n%s%s\n}", Indent, strings.Join(strs, ",\n"+Indent))
 	}
 
-	fmt.Fprintf(&b, " from %s%s", e.From, EOLSemicolon)
+	fmt.Fprintf(&b, " from %s%s", i.From, EOLSemicolon)
 	return b.String()
 }
 

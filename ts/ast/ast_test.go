@@ -148,13 +148,13 @@ func TestExportNamedSet(t *testing.T) {
 	frompath := "./smoochie/goo"
 
 	namedsetstt := map[string]struct {
-		input ast.ExportNamedSet
+		input ast.ExportSet
 		want  string
 	}{
 		"single": {
 			want: `export { AnnotationQuery };`,
-			input: ast.ExportNamedSet{
-				Exports: []ast.NamedSpecifier{
+			input: ast.ExportSet{
+				Exports: ast.Idents{
 					{
 						Name: "AnnotationQuery",
 					},
@@ -163,9 +163,9 @@ func TestExportNamedSet(t *testing.T) {
 		},
 		"singletype": {
 			want: `export type { AnnotationQuery };`,
-			input: ast.ExportNamedSet{
+			input: ast.ExportSet{
 				TypeOnly: true,
-				Exports: []ast.NamedSpecifier{
+				Exports: ast.Idents{
 					{
 						Name: "AnnotationQuery",
 					},
@@ -174,22 +174,22 @@ func TestExportNamedSet(t *testing.T) {
 		},
 		"singleas": {
 			want: `export { VariableModel as Farck };`,
-			input: ast.ExportNamedSet{
-				Exports: []ast.NamedSpecifier{
+			input: ast.ExportSet{
+				Exports: ast.Idents{
 					{
-						Name:   "VariableModel",
-						AsName: "Farck",
+						Name: "VariableModel",
+						As:   "Farck",
 					},
 				},
 			},
 		},
 		"singleasfrom": {
 			want: `export { VariableModel as Farck } from './smoochie/goo';`,
-			input: ast.ExportNamedSet{
-				Exports: []ast.NamedSpecifier{
+			input: ast.ExportSet{
+				Exports: ast.Idents{
 					{
-						Name:   "VariableModel",
-						AsName: "Farck",
+						Name: "VariableModel",
+						As:   "Farck",
 					},
 				},
 				From: ast.Str{Value: frompath},
@@ -200,14 +200,14 @@ func TestExportNamedSet(t *testing.T) {
   AnnotationQuery,
   VariableModel as Farck
 };`,
-			input: ast.ExportNamedSet{
-				Exports: []ast.NamedSpecifier{
+			input: ast.ExportSet{
+				Exports: ast.Idents{
 					{
 						Name: "AnnotationQuery",
 					},
 					{
-						Name:   "VariableModel",
-						AsName: "Farck",
+						Name: "VariableModel",
+						As:   "Farck",
 					},
 				},
 			},
@@ -217,14 +217,14 @@ func TestExportNamedSet(t *testing.T) {
   AnnotationQuery,
   VariableModel as Farck
 } from './smoochie/goo';`,
-			input: ast.ExportNamedSet{
-				Exports: []ast.NamedSpecifier{
+			input: ast.ExportSet{
+				Exports: ast.Idents{
 					{
 						Name: "AnnotationQuery",
 					},
 					{
-						Name:   "VariableModel",
-						AsName: "Farck",
+						Name: "VariableModel",
+						As:   "Farck",
 					},
 				},
 				From: ast.Str{Value: frompath},
@@ -235,15 +235,15 @@ func TestExportNamedSet(t *testing.T) {
   AnnotationQuery,
   VariableModel as Farck
 } from './smoochie/goo';`,
-			input: ast.ExportNamedSet{
+			input: ast.ExportSet{
 				TypeOnly: true,
-				Exports: []ast.NamedSpecifier{
+				Exports: ast.Idents{
 					{
 						Name: "AnnotationQuery",
 					},
 					{
-						Name:   "VariableModel",
-						AsName: "Farck",
+						Name: "VariableModel",
+						As:   "Farck",
 					},
 				},
 				From: ast.Str{Value: frompath},
