@@ -421,17 +421,19 @@ func orEnum(v cue.Value) ([]ts.Expr, error) {
 	var fields []ts.Expr
 	for idx, dv := range dvals {
 		var text string
+		var id tsast.Ident
 		if attrMemberNameExist {
 			text = evals[idx]
+			id = ts.Ident(text)
 		} else {
 			text, _ = dv.String()
+			id = ts.Ident(strings.Title(text))
 		}
 
 		if !dv.IsConcrete() {
 			return nil, valError(v, "typescript enums may only be generated from a disjunction of concrete strings or numbers")
 		}
 
-		id := ts.Ident(strings.Title(text))
 		if id.Validate() != nil {
 			return nil, valError(v, "title casing of enum member %q produces an invalid typescript identifier; memberNames must be explicitly given in @cuetsy attribute", text)
 		}
