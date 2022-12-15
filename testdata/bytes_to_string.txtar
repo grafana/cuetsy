@@ -1,0 +1,12 @@
+-- one.cue --
+package cuetsy
+
+ByteToString: {
+    value: bytes
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface ByteToString {
+  value: string;
+}
