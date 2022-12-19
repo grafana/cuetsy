@@ -1,0 +1,16 @@
+-- cue --
+package cuetsy
+
+Map: {
+  boolTest: [string]: bool
+  numberTest: [string]: int64
+  stringTest: [string]: string
+} @cuetsy(kind="interface")
+
+-- ts  --
+
+export interface Map {
+  boolTest: Record<string, boolean>;
+  numberTest: Record<string, number>;
+  stringTest: Record<string, string>;
+}

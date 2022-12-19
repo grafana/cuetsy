@@ -911,11 +911,23 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	case cue.StructKind:
 		switch op {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
+			val := v.LookupPath(cue.MakePath(cue.AnyString))
+			if val.Exists() {
+				kvs := []tsast.KeyValueExpr{
+					{
+						Key:         ts.Ident("string"),
+						Value:       tsprintType(val.IncompleteKind()),
+						CommentList: commentsFor(val.Value(), true),
+					},
+				}
+
+				return tsast.ObjectLit{Elems: kvs, IsType: isType, IsMap: true}, nil
+			}
+
 			iter, err := v.Fields(cue.Optional(true))
 			if err != nil {
 				return nil, valError(v, "something went wrong when generate nested structs")
 			}
-
 			size, _ := v.Len().Int64()
 			kvs := make([]tsast.KeyValueExpr, 0, size)
 			for iter.Next() {
