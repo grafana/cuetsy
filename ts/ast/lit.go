@@ -10,6 +10,7 @@ type ObjectLit struct {
 	Comment []Comment
 	Elems   []KeyValueExpr
 	IsType  bool
+	IsMap   bool
 
 	eol EOL
 	lvl int
@@ -34,6 +35,12 @@ func (o ObjectLit) innerString(aeol EOL, lvl int) string {
 	write := b.WriteString
 	indent := func(n int) {
 		write(strings.Repeat(Indent, n))
+	}
+
+	if o.IsMap {
+		kv := o.Elems[0]
+		write(fmt.Sprintf("Record<%s, %s>", kv.Key.String(), kv.Value.String()))
+		return b.String()
 	}
 
 	if len(o.Elems) == 0 {
