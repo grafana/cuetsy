@@ -1071,6 +1071,8 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 		fallthrough
 	case cue.TopKind:
 		return tsprintType(ik), nil
+	case cue.BytesKind:
+		return tsprintType(cue.StringKind), nil
 	}
 
 	// Having more than one possible kind entails a disjunction, TopKind, or
