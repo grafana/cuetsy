@@ -911,16 +911,20 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	case cue.StructKind:
 		switch op {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
+			// Checks [string]something
 			val := v.LookupPath(cue.MakePath(cue.AnyString))
 			if val.Exists() {
+				expr, err := tsprintField(val, isType)
+				if err != nil {
+					return nil, valError(v, err.Error())
+				}
 				kvs := []tsast.KeyValueExpr{
 					{
 						Key:         ts.Ident("string"),
-						Value:       tsprintType(val.IncompleteKind()),
+						Value:       expr,
 						CommentList: commentsFor(val.Value(), true),
 					},
 				}
-
 				return tsast.ObjectLit{Elems: kvs, IsType: isType, IsMap: true}, nil
 			}
 
