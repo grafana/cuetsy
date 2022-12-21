@@ -911,7 +911,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	case cue.StructKind:
 		switch op {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
-			// Checks [string]something
+			// Checks [string]something and {...}
 			val := v.LookupPath(cue.MakePath(cue.AnyString))
 			if val.Exists() {
 				expr, err := tsprintField(val, isType)
