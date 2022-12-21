@@ -14,6 +14,7 @@ Map: {
   listWithStructTest: [string]: [...#StructTest]
   mapTest: [string]: [string]: string
   structTest: [string]: #StructTest
+  optionalTest?: [string]: string
 } @cuetsy(kind="interface")
 
 
@@ -29,6 +30,7 @@ export interface Map {
 }>>;
   mapTest: Record<string, Record<string, string>>;
   numberTest: Record<string, number>;
+  optionalTest?: Record<string, string>;
   stringTest: Record<string, string>;
   structTest: Record<string, {
   a: string,
