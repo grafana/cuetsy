@@ -22,7 +22,7 @@ Map: {
 
 export interface Map {
   boolTest: Record<string, boolean>;
-  emptyStructTest: Record<string, any>;
+  emptyStructTest: Record<string, unknown>;
   listTest: Record<string, Array<string>>;
   listWithStructTest: Record<string, Array<{
   a: string,

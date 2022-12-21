@@ -1122,7 +1122,7 @@ func tsprintType(k cue.Kind) ts.Expr {
 	case cue.NumberKind, cue.FloatKind, cue.IntKind:
 		return ts.Ident("number")
 	case cue.TopKind:
-		return ts.Ident("any")
+		return ts.Ident("unknown")
 	default:
 		return nil
 	}
