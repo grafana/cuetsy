@@ -913,7 +913,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
 			// Checks [string]something and {...}
 			val := v.LookupPath(cue.MakePath(cue.AnyString))
-			if val.Exists() {
+			if val.Exists() && val.IncompleteKind() != cue.TopKind {
 				expr, err := tsprintField(val, isType)
 				if err != nil {
 					return nil, valError(v, err.Error())

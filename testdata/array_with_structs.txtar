@@ -1,0 +1,29 @@
+-- cue --
+package cuetsy
+
+List: {
+  test?: [...(#StructTest | #DefinedStructTest)]  @grafanamaturity(NeedsExpertReview)
+
+  #StructTest: {
+    a: string
+  }
+
+  #DefinedStructTest: {
+    type: "hola"
+    ...
+  }
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export interface List {
+  test?: Array<({
+    a: string;
+  } | {
+      type: 'hola';
+    })>;
+}
+
+export const defaultList: Partial<List> = {
+  test: [],
+};
