@@ -2,7 +2,7 @@
 package cuetsy
 
 List: {
-  test?: [...(#StructTest | #DefinedStructTest)]  @grafanamaturity(NeedsExpertReview)
+  test?: [...(#StructTest | #DefinedStructTest)]
 
   #StructTest: {
     a: string
