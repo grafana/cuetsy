@@ -911,9 +911,10 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	case cue.StructKind:
 		switch op {
 		case cue.SelectorOp, cue.AndOp, cue.NoOp:
-			// Checks [string]something and {...}
+			// Checks [string]something only.
+			// It skips structs like {...} (cue.TopKind) to avoid undesired results.
 			val := v.LookupPath(cue.MakePath(cue.AnyString))
-			if val.Exists() {
+			if val.Exists() && val.IncompleteKind() != cue.TopKind {
 				expr, err := tsprintField(val, isType)
 				if err != nil {
 					return nil, valError(v, err.Error())
@@ -1122,7 +1123,7 @@ func tsprintType(k cue.Kind) ts.Expr {
 	case cue.NumberKind, cue.FloatKind, cue.IntKind:
 		return ts.Ident("number")
 	case cue.TopKind:
-		return ts.Ident("unknown")
+		return ts.Ident("any")
 	default:
 		return nil
 	}

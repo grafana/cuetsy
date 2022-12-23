@@ -5,6 +5,11 @@ package cuetsy
   a: string
 }
 
+#StructWithDots: {
+  type: "hola"
+  ...
+}
+
 Map: {
   boolTest: [string]: bool
   numberTest: [string]: int64
@@ -15,6 +20,8 @@ Map: {
   mapTest: [string]: [string]: string
   structTest: [string]: #StructTest
   optionalTest?: [string]: string
+  emptyStructMapTest: [string]: {...}
+  structWithDotsTest: [string]: #StructWithDots
 } @cuetsy(kind="interface")
 
 
@@ -23,6 +30,7 @@ Map: {
 
 export interface Map {
   boolTest: Record<string, boolean>;
+  emptyStructMapTest: Record<string, Record<string, unknown>>;
   emptyStructTest: Record<string, unknown>;
   listTest: Record<string, Array<string>>;
   listWithStructTest: Record<string, Array<{
@@ -34,5 +42,8 @@ export interface Map {
   stringTest: Record<string, string>;
   structTest: Record<string, {
   a: string,
+}>;
+  structWithDotsTest: Record<string, {
+  type: 'hola',
 }>;
 }
