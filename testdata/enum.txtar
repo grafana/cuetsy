@@ -6,6 +6,10 @@ E2: "e2str1" | "e2str2" | "e2str3" | "e2str4" @cuetsy(kind="enum")
 E3: "e1str1" | "e1str2" | "e1str3" @cuetsy(kind="enum", memberNames="Foo|Bar|Zip")
 E4: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="foo|Bar|Zip")
 
+ValueWithEnum: {
+  value: E1.E1str1
+} @cuetsy(kind="interface")
+
 -- ts  --
 
 export enum E1 {
@@ -31,4 +35,8 @@ export enum E4 {
   Bar = 2,
   Zip = 3,
   foo = 1,
+}
+
+export interface ValueWithEnum {
+  value: E1.E1str1;
 }

@@ -788,6 +788,16 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		if err != nil {
 			panic(err)
 		}
+		op, expr := v.Expr()
+		if len(expr) > 1 && expr[0].Kind() == cue.BottomKind && op == cue.SelectorOp {
+			val, err := expr[1].String()
+			if err != nil {
+				return nil, err
+			}
+			if ref.T.String() != val {
+				ref.T = ts.Raw(strings.Join([]string{ref.T.String(), val}, "."))
+			}
+		}
 	}
 
 	// Either specify a default if one exists (one conjunct), or rewrite the type to
