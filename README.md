@@ -230,7 +230,7 @@ export interface ByEmbedding extends AInterface {
 
 | CUE                                                                                                                                           | TypeScript                                                                       | `@cuetsy(kind)` |
 | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------- |
-| [Disjunction](https://cuelang.org/docs/tutorials/tour/types/disjunctions/) | [String enums](https://www.typescriptlang.org/docs/handbook/enums.html#string-enums), [String enums](https://www.typescriptlang.org/docs/handbook/enums.html#numeric-enums) | `enum`                |
+| [Disjunction](https://cuelang.org/docs/tutorials/tour/types/disjunctions/) | [String enums](https://www.typescriptlang.org/docs/handbook/enums.html#string-enums), [Numeric enums](https://www.typescriptlang.org/docs/handbook/enums.html#numeric-enums) | `enum`                |
 
 TypeScript's enums are union types, and are a mostly-exact mapping of what can
 be expressed with CUE's disjunctions. Disjunctions may contain only string or
