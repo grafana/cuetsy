@@ -1,0 +1,9 @@
+-- cue --
+
+#Enum: "a" @cuetsy(kind="enum",memberNames="First")
+
+-- ts --
+
+export enum Enum {
+  First = 'a',
+}
