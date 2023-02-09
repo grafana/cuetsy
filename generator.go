@@ -462,70 +462,8 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		return nil
 	}
 
-	// Create an empty value, onto which we'll unify fields that need not be
-	// generated as literals.
-	nolit := v.Context().CompileString("{...}")
-
-	var extends []ts.Expr
-	var some bool
-
-	// Recursively walk down Values returned from Expr() and separate
-	// unified/embedded structs from a struct literal, so that we can make the
-	// former (if they are also marked with @cuetsy(kind="interface")) show up
-	// as "extends" instead of writing out their fields directly.
-	var walkExpr func(wv cue.Value) error
-	walkExpr = func(wv cue.Value) error {
-		op, dvals := wv.Expr()
-		switch op {
-		case cue.NoOp:
-			// Simple path - when the field is a plain struct literal decl, the walk function
-			// will take this branch and return immediately.
-
-			// FIXME this does the struct literal path correctly, but it also
-			// catches this case, for some reason:
-			//
-			//   Thing: {
-			//       other.Thing
-			//   }
-			//
-			// The saner form - `Thing: other.Thing` - does not go through this path.
-			return nil
-		case cue.OrOp:
-			return valError(wv, "typescript interfaces cannot be constructed from disjunctions")
-		case cue.SelectorOp:
-			expr, err := refAsInterface(wv)
-			if err != nil {
-				return err
-			}
-
-			// If we have a string to add to the list of "extends", then also
-			// add the ref to the list of fields to exclude if subsumed.
-			if expr != nil {
-				some = true
-				extends = append(extends, expr)
-				nolit = nolit.Unify(cue.Dereference(wv))
-			}
-			return nil
-		case cue.AndOp:
-			// First, search the dvals for StructLits. Having more than one is possible,
-			// but weird, as writing >1 literal and unifying them is the same as just writing
-			// one containing the unified result - more complicated with no obvious benefit.
-			for _, dv := range dvals {
-				if dv.IncompleteKind() != cue.StructKind && dv.IncompleteKind() != cue.TopKind {
-					panic("impossible? seems like it should be. if this pops, clearly not!")
-				}
-
-				if err := walkExpr(dv); err != nil {
-					return err
-				}
-			}
-			return nil
-		default:
-			panic(fmt.Sprintf("unhandled op type %s", op.String()))
-		}
-	}
-
-	if err := walkExpr(v); err != nil {
+	extends, nolit, err := findExtends(v)
+	if err != nil {
 		g.addErr(err)
 		return nil
 	}
@@ -559,15 +497,15 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 		//
 		// There's _probably_ a way around this, especially when we move to an
 		// AST rather than dumb string templates. But i'm tired of looking.
-		if some {
+		if len(extends) > 0 {
 			// Look up the path of the current field within the nolit value,
 			// then check it for subsumption.
 			sel := iter.Selector()
 			if iter.IsOptional() {
 				sel = sel.Optional()
 			}
-			sub := nolit.LookupPath(cue.MakePath(sel))
 
+			sub := nolit.LookupPath(cue.MakePath(sel))
 			// Theoretically, lattice equality can be defined as bijective
 			// subsumption. In practice, Subsume() seems to ignore optional
 			// fields, and Equals() doesn't. So, use Equals().
@@ -634,6 +572,74 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	}
 
 	return ret
+}
+
+// Recursively walk down Values returned from Expr() and separate
+// unified/embedded structs from a struct literal, so that we can make the
+// former (if they are also marked with @cuetsy(kind="interface")) show up
+// as "extends" instead of writing out their fields directly.
+func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
+	var extends []ts.Expr
+	// Create an empty value, onto which we'll unify fields that need not be
+	// generated as literals.
+	baseNolit := v.Context().CompileString("")
+	nolit := v.Context().CompileString("")
+	var walkExpr func(v cue.Value) error
+	walkExpr = func(v cue.Value) error {
+		op, dvals := v.Expr()
+		switch op {
+		case cue.NoOp:
+			// Simple path - when the field is a plain struct literal decl, the walk function
+			// will take this branch and return immediately.
+
+			// FIXME this does the struct literal path correctly, but it also
+			// catches this case, for some reason:
+			//
+			//   Thing: {
+			//       other.Thing
+			//   }
+			//
+			// The saner form - `Thing: other.Thing` - does not go through this path.
+			return nil
+		case cue.OrOp:
+			return valError(v, "typescript interfaces cannot be constructed from disjunctions")
+		case cue.SelectorOp:
+			expr, err := refAsInterface(v)
+			if err != nil {
+				return err
+			}
+
+			// If we have a string to add to the list of "extends", then also
+			// add the ref to the list of fields to exclude if subsumed.
+			if expr != nil {
+				extends = append(extends, expr)
+				nolit = baseNolit.Unify(nolit.Unify(cue.Dereference(v)))
+			}
+			return nil
+		case cue.AndOp:
+			// First, search the dvals for StructLits. Having more than one is possible,
+			// but weird, as writing >1 literal and unifying them is the same as just writing
+			// one containing the unified result - more complicated with no obvious benefit.
+			for _, dv := range dvals {
+				if dv.IncompleteKind() != cue.StructKind && dv.IncompleteKind() != cue.TopKind {
+					panic("impossible? seems like it should be. if this pops, clearly not!")
+				}
+
+				if err := walkExpr(dv); err != nil {
+					return err
+				}
+			}
+			return nil
+		default:
+			panic(fmt.Sprintf("unhandled op type %s", op.String()))
+		}
+	}
+
+	if err := walkExpr(v); err != nil {
+		return nil, nolit, err
+	}
+
+	return extends, nolit, nil
 }
 
 // Generate a typeRef for the cue.Value
