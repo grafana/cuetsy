@@ -11,4 +11,4 @@ TableCellDisplayMode: {
 } @cuetsy(kind="enum")
 
 -- err --
-typescript enums may only be generated from concrete strings, or ints with memberNames attribute"
+typescript enums may only be generated from concrete strings, or ints with memberNames attribute
