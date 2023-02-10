@@ -285,11 +285,11 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 		op, _ = v.Expr()
 	}
 
-	// We restrict the expression of TS enums to CUE disjunctions (sum types) of strings.
-	allowed := cue.StringKind | cue.NumberKind | cue.NumberKind
+	// We restrict the expression of TS enums to ints or strings.
+	allowed := cue.StringKind | cue.IntKind
 	ik := v.IncompleteKind()
 	if ik&allowed != ik {
-		g.addErr(valError(v, "typescript enums may only be generated from a disjunction of concrete int with memberNames attribute or strings"))
+		g.addErr(valError(v, "typescript enums may only be generated from concrete strings, or ints with memberNames attribute"))
 		return nil
 	}
 
