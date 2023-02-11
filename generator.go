@@ -577,7 +577,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 // Recursively walk down Values returned from Expr() and separate
 // unified/embedded structs from a struct literal, so that we can make the
 // former (if they are also marked with @cuetsy(kind="interface")) show up
-// as "extends" instead of writing out their fields directly.
+// as "extends" instead of inlining their fields.
 func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 	var extends []ts.Expr
 	// Create an empty value, onto which we'll unify fields that need not be
