@@ -1,0 +1,43 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+#Extended: {
+  dep.#Base
+  #AStruct
+  #BStruct
+  field: string
+} @cuetsy(kind="interface")
+
+#AStruct: {
+    anotherField: string
+} @cuetsy(kind="interface")
+
+#BStruct: {
+    moreField: string
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+#Base: {
+    baseField: string
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface Extended extends dep.Base, AStruct, BStruct {
+  field: string;
+}
+
+export interface AStruct {
+  anotherField: string;
+}
+
+export interface BStruct {
+  moreField: string;
+}
