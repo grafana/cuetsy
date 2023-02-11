@@ -48,6 +48,7 @@ func TestGenerateWithImports(t *testing.T) {
 			"imports/struct_shorthand": "Shorthand struct notation is currently unsupported, needs fixing",
 			"imports/single_embed":     "Single-item struct embeds should be treated as just another interface to compose, but get confused with references - #60",
 			"imports/inline_comments":  "Inline comments do not appear be retrievable from cue.Value.Doc()",
+			"imports/nulltype":         "null types are not handled correctly",
 		},
 	}
 

@@ -1,0 +1,26 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+nullType: null @cuetsy(kind="type")
+nullInUnion: string | null @cuetsy(kind="type")
+nullDefault: "foo" | "bar" | *null @cuetsy(kind="type")
+obj: {
+    nullField: null
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export type nullType = null;
+
+export type nullInUnion = string | null;
+
+export type nullDefault = "foo" | "bar" | null;
+
+export const defaultnullDefault: nullDefault = null;
+
+export interface obj {
+    nullField: null
+}
