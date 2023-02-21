@@ -1218,13 +1218,16 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 
 	if !isReference(v) {
 		_, has := v.Default()
-		if !has || !isReference(dvals[0]) {
+		if hasOverrideValues(v) {
+			v = dvals[1]
+		} else if !has || !isReference(dvals[0]) {
 			return nil, valError(v, "references within complex logic are currently unsupported")
+		} else {
+			v = dvals[0]
 		}
 
 		// This may break a bunch of things but let's see if it gives us a
 		// defensible baseline
-		v = dvals[0]
 		op, dvals = v.Expr()
 	}
 

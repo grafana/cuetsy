@@ -80,6 +80,7 @@ func targetsKind(v cue.Value, kinds ...TSType) bool {
 	if len(kinds) == 0 {
 		kinds = allKinds[:]
 	}
+
 	for _, knd := range kinds {
 		if vkind == knd {
 			return true
@@ -116,6 +117,23 @@ func containsCuetsyReference(v cue.Value, kinds ...TSType) bool {
 			return true
 		}
 	}
+
+	return hasOverrideValues(v, kinds...)
+}
+
+func hasOverrideValues(v cue.Value, kinds ...TSType) bool {
+	// When a value overrides the parent, its marked as BottomKind with two elements
+	op, values := v.Expr()
+	if op != cue.AndOp && len(values) != 2 {
+		return false
+	}
+
+	for _, dv := range flatten(values[1]) {
+		if isReference(dv) && targetsKind(cue.Dereference(dv), kinds...) {
+			return true
+		}
+	}
+
 	return false
 }
 
