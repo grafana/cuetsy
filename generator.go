@@ -899,7 +899,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 		if ref != nil {
 			return ref, nil
 		}
-		return nil, valError(v, "failed to generate reference correctly")
+		return nil, valError(v, "failed to generate reference correctly for path %s", v.Path().String())
 	}
 
 	verr := v.Validate(cue.Final())
@@ -1218,13 +1218,16 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 
 	if !isReference(v) {
 		_, has := v.Default()
-		if !has || !isReference(dvals[0]) {
+		if hasOverrideValues(v) {
+			v = dvals[1]
+		} else if !has || !isReference(dvals[0]) {
 			return nil, valError(v, "references within complex logic are currently unsupported")
+		} else {
+			v = dvals[0]
 		}
 
 		// This may break a bunch of things but let's see if it gives us a
 		// defensible baseline
-		v = dvals[0]
 		op, dvals = v.Expr()
 	}
 
@@ -1267,7 +1270,7 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 			}, nil
 		}
 	default:
-		return nil, valError(v, "unknown selector subject type %T, cannot translate", dvals[0].Source())
+		return nil, valError(v, "unknown selector subject type %T, cannot translate path %s", dvals[0].Source(), v.Path().String())
 	}
 
 	return nil, nil

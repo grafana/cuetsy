@@ -116,6 +116,30 @@ func containsCuetsyReference(v cue.Value, kinds ...TSType) bool {
 			return true
 		}
 	}
+
+	return hasOverrideValues(v, kinds...)
+}
+
+func hasOverrideValues(v cue.Value, kinds ...TSType) bool {
+	// When a value overrides the parent, its marked as BottomKind with two elements.
+	// It also conflicts with enums with default value, so internally we need to check if
+	// the operator of the second element isn't an OrOp
+	op, values := v.Expr()
+	if op != cue.AndOp || len(values) != 2 {
+		return false
+	}
+
+	defaultOp, _ := values[1].Expr()
+	if defaultOp == cue.AndOp {
+		return false
+	}
+
+	for _, dv := range flatten(values[0]) {
+		if isReference(dv) && targetsKind(cue.Dereference(dv), kinds...) {
+			return true
+		}
+	}
+
 	return false
 }
 
