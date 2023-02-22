@@ -80,7 +80,6 @@ func targetsKind(v cue.Value, kinds ...TSType) bool {
 	if len(kinds) == 0 {
 		kinds = allKinds[:]
 	}
-
 	for _, knd := range kinds {
 		if vkind == knd {
 			return true
