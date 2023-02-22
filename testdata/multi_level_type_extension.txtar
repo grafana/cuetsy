@@ -3,13 +3,26 @@
 #AType: "a" | "b" | "c"          @cuetsy(kind="type")
 #BType: "d" | "e" | "f" | #AType @cuetsy(kind="type")
 
+
+
 #Base: {
-	type:  #BType
+	type:        #BType
+	anotherType: #BType
+} @cuetsy(kind="interface")
+
+#InterfaceOne: {
+    name?: string
+} @cuetsy(kind="interface")
+
+#InterfaceTwo: {
+    prop?: string
 } @cuetsy(kind="interface")
 
 #Struct: {
     #Base
-	type:  #AType
+	type:        #AType
+	expr:        #InterfaceOne | #InterfaceTwo
+	anotherType: #BType & "e"
 } @cuetsy(kind="interface")
 
 -- ts --
@@ -19,9 +32,20 @@ export type AType = ('a' | 'b' | 'c');
 export type BType = ('d' | 'e' | 'f' | AType);
 
 export interface Base {
+  anotherType: BType;
   type: BType;
 }
 
+export interface InterfaceOne {
+  name?: string;
+}
+
+export interface InterfaceTwo {
+  prop?: string;
+}
+
 export interface Struct extends Base {
+  anotherType: 'e';
+  expr: (InterfaceOne | InterfaceTwo);
   type: AType;
 }

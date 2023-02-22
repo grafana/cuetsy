@@ -899,7 +899,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 		if ref != nil {
 			return ref, nil
 		}
-		return nil, valError(v, "failed to generate reference correctly")
+		return nil, valError(v, "failed to generate reference correctly for path %s", v.Path().String())
 	}
 
 	verr := v.Validate(cue.Final())
@@ -1270,7 +1270,7 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 			}, nil
 		}
 	default:
-		return nil, valError(v, "unknown selector subject type %T, cannot translate", dvals[0].Source())
+		return nil, valError(v, "unknown selector subject type %T, cannot translate path %s", dvals[0].Source(), v.Path().String())
 	}
 
 	return nil, nil
