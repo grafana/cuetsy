@@ -1,0 +1,19 @@
+-- cue --
+
+#StringEnum: "a" @cuetsy(kind="enum",memberNames="First")
+#IntEnum: 1 @cuetsy(kind="enum",memberNames="First")
+#WithoutMemberTypesEnum: "a" @cuetsy(kind="enum")
+
+-- ts --
+
+export enum StringEnum {
+  First = 'a',
+}
+
+export enum IntEnum {
+  First = 1,
+}
+
+export enum WithoutMemberTypesEnum {
+  A = 'a',
+}
