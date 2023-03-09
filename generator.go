@@ -803,6 +803,11 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 			})
 		}
 
+		// To avoid to change the order of the elements everytime that we generate the code.
+		sort.Slice(elements, func(i, j int) bool {
+			return elements[i].String() < elements[j].String()
+		})
+
 		ref.T = ts.Union(elements...)
 	case 2:
 		err = g.findIdent(v, enumValues, *lit, func(ident tsast.Ident) {
