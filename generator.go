@@ -716,30 +716,15 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	var lit *cue.Value
 
-	findIdent := func(ev, tv cue.Value) (*tsast.Ident, error) {
-		if ev.Subsume(tv) != nil {
-			err := valError(v, "may only apply values to an enum that are members of that enum; %#v is not a member of %#v", tv, ev)
-			g.addErr(err)
-			return nil, err
-		}
-		pairs, err := enumPairs(ev)
-		if err != nil {
-			return nil, err
-		}
-		for _, pair := range pairs {
-			if veq(pair.val, tv) {
-				return &tsast.Ident{Name: pair.name}, nil
-			}
-		}
-
-		panic(fmt.Sprintf("unreachable - %#v not equal to any member of %#v, but should have been caught by subsume check", tv, ev))
-	}
-
 	conjuncts := appendSplit(nil, cue.AndOp, v)
+	var enumUnions map[cue.Value]cue.Value
 	switch len(conjuncts) {
 	case 0:
 		panic("unreachable")
 	case 1:
+		// This case is when we have a union of enums which we need to iterate them to get their values.
+		// It retrieves a list of references with its literal values.
+		enumUnions = g.findEnumUnions(v)
 	case 2:
 		// The only case we actually want to support, at least for now, is this:
 		//
@@ -772,7 +757,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	// Search the expr tree for the actual enum. This approach is uncomfortable
 	// without having the assurance that there aren't more than one possible match/a
 	// guarantee from the CUE API of a stable, deterministic search order, etc.
-	ev, referrer, has := findRefWithKind(v, TypeEnum)
+	enumValues, referrer, has := findRefWithKind(v, TypeEnum)
 	if !has {
 		ve := valError(v, "does not reference a field with a cuetsy enum attribute")
 		g.addErr(ve)
@@ -780,7 +765,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	}
 
 	var err error
-	decls := g.genEnum("foo", ev)
+	decls := g.genEnum("foo", enumValues)
 	ref := &typeRef{}
 
 	// Construct the type component of the reference
@@ -790,7 +775,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		g.addErr(ve)
 		return nil, ve
 	case 1, 2:
-		ref.T, err = referenceValueAs(referrer)
+		ref.T, err = referenceValueAs(referrer, TypeEnum)
 		if err != nil {
 			panic(err)
 		}
@@ -801,14 +786,30 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	switch len(conjuncts) {
 	case 1:
 		if defv, hasdef := v.Default(); hasdef {
-			if defaultIdent, err := findIdent(ev, defv); err == nil {
+			if defaultIdent, err := g.findIdent(v, enumValues, defv); err == nil {
 				ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
 			} else {
 				return nil, err
 			}
 		}
+		if len(enumUnions) == 0 {
+			break
+		}
+		var elements []tsast.Expr
+		for lit, enumValues := range enumUnions {
+			if typeIdent, err := g.findIdent(v, enumValues, lit); err == nil {
+				elements = append(elements, tsast.SelectorExpr{
+					Expr: ref.T,
+					Sel:  *typeIdent,
+				})
+			} else {
+				return nil, err
+			}
+		}
+
+		ref.T = ts.Union(elements...)
 	case 2:
-		if typeIdent, err := findIdent(ev, *lit); err == nil {
+		if typeIdent, err := g.findIdent(v, enumValues, *lit); err == nil {
 			ref.T = tsast.SelectorExpr{
 				Expr: ref.T,
 				Sel:  *typeIdent,
@@ -819,6 +820,62 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	}
 
 	return ref, nil
+}
+
+func (g generator) findEnumUnions(v cue.Value) map[cue.Value]cue.Value {
+	op, values := v.Expr()
+	// Check if we have a union of enums like (#Enum & "a") | (#Enum & "b")
+	if op != cue.OrOp {
+		return nil
+	}
+
+	enumsWithUnions := make(map[cue.Value]cue.Value, len(values))
+	for _, val := range values {
+		conjuncts := appendSplit(nil, cue.AndOp, val)
+		if len(conjuncts) != 2 {
+			return nil
+		}
+		cr, lit := conjuncts[0], conjuncts[1]
+		if cr.Subsume(lit) != nil {
+			return nil
+		}
+
+		switch val.Kind() {
+		case cue.StringKind, cue.IntKind:
+			enumValues, _, has := findRefWithKind(v, TypeEnum)
+			if !has {
+				return nil
+			}
+			enumsWithUnions[lit] = enumValues
+		default:
+			_, vals := val.Expr()
+			if len(vals) > 1 {
+				panic(fmt.Sprintf("%s.%s isn't a valid enum value", val.Path().String(), vals[1]))
+			}
+			panic(fmt.Sprintf("Invalid value in path %s", val.Path().String()))
+		}
+	}
+
+	return enumsWithUnions
+}
+
+func (g generator) findIdent(v, ev, tv cue.Value) (*tsast.Ident, error) {
+	if ev.Subsume(tv) != nil {
+		err := valError(v, "may only apply values to an enum that are members of that enum; %#v is not a member of %#v", tv, ev)
+		g.addErr(err)
+		return nil, err
+	}
+	pairs, err := enumPairs(ev)
+	if err != nil {
+		return nil, err
+	}
+	for _, pair := range pairs {
+		if veq(pair.val, tv) {
+			return &tsast.Ident{Name: pair.name}, nil
+		}
+	}
+
+	panic(fmt.Sprintf("unreachable - %#v not equal to any member of %#v, but should have been caught by subsume check", tv, ev))
 }
 
 // typeRef is a pair of expressions for referring to another type - the reference

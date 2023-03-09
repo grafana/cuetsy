@@ -1,0 +1,39 @@
+-- cue --
+
+#StringEnum: "a" | "b" | "c" @cuetsy(kind="enum")
+#StringEnumWithMemberTypes: "a" | "b" | "c" @cuetsy(kind="enum",memberNames="First|Second|Third")
+#IntEnum: 1 | 2 | 3 @cuetsy(kind="enum",memberNames="First|Second|Third")
+
+#Expressions: {
+   sEnum: (#StringEnum & "a") | (#StringEnum & "b")
+   sEnumMem: (#StringEnumWithMemberTypes & "a") | (#StringEnumWithMemberTypes & "b")
+   iEnum: (#IntEnum & 1) | (#IntEnum & 2)
+   normal: #StringEnum & "a"
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export enum StringEnum {
+  A = 'a',
+  B = 'b',
+  C = 'c',
+}
+
+export enum StringEnumWithMemberTypes {
+  First = 'a',
+  Second = 'b',
+  Third = 'c',
+}
+
+export enum IntEnum {
+  First = 1,
+  Second = 2,
+  Third = 3,
+}
+
+export interface Expressions {
+  iEnum: (IntEnum.First | IntEnum.Second);
+  normal: StringEnum.A;
+  sEnum: (StringEnum.A | StringEnum.B);
+  sEnumMem: (StringEnumWithMemberTypes.First | StringEnumWithMemberTypes.Second);
+}
