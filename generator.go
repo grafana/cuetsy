@@ -722,8 +722,8 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	case 0:
 		panic("unreachable")
 	case 1:
-		// This case is when we have a union of enums which we need to iterate them to get their values.
-		// It retrieves a list of references with its literal values.
+		// This case is when we have a union of enums which we need to iterate them to get their values or has a default value.
+		// It retrieves a list of literals with their references.
 		enumUnions = g.findEnumUnions(v)
 	case 2:
 		// The only case we actually want to support, at least for now, is this:
@@ -786,45 +786,39 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	switch len(conjuncts) {
 	case 1:
 		if defv, hasdef := v.Default(); hasdef {
-			if defaultIdent, err := g.findIdent(v, enumValues, defv); err == nil {
-				ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
-			} else {
-				return nil, err
-			}
+			err = g.findIdent(v, enumValues, defv, func(expr tsast.Ident) {
+				ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: expr}
+			})
 		}
 		if len(enumUnions) == 0 {
 			break
 		}
 		var elements []tsast.Expr
 		for lit, enumValues := range enumUnions {
-			if typeIdent, err := g.findIdent(v, enumValues, lit); err == nil {
+			err = g.findIdent(v, enumValues, lit, func(ident tsast.Ident) {
 				elements = append(elements, tsast.SelectorExpr{
 					Expr: ref.T,
-					Sel:  *typeIdent,
+					Sel:  ident,
 				})
-			} else {
-				return nil, err
-			}
+			})
 		}
 
 		ref.T = ts.Union(elements...)
 	case 2:
-		if typeIdent, err := g.findIdent(v, enumValues, *lit); err == nil {
+		err = g.findIdent(v, enumValues, *lit, func(ident tsast.Ident) {
 			ref.T = tsast.SelectorExpr{
 				Expr: ref.T,
-				Sel:  *typeIdent,
+				Sel:  ident,
 			}
-		} else {
-			return nil, err
-		}
+		})
 	}
 
-	return ref, nil
+	return ref, err
 }
 
+// findEnumUnions find the unions between enums like (#Enum & "a") | (#Enum & "b")
 func (g generator) findEnumUnions(v cue.Value) map[cue.Value]cue.Value {
 	op, values := v.Expr()
-	// Check if we have a union of enums like (#Enum & "a") | (#Enum & "b")
 	if op != cue.OrOp {
 		return nil
 	}
@@ -859,19 +853,20 @@ func (g generator) findEnumUnions(v cue.Value) map[cue.Value]cue.Value {
 	return enumsWithUnions
 }
 
-func (g generator) findIdent(v, ev, tv cue.Value) (*tsast.Ident, error) {
+func (g generator) findIdent(v, ev, tv cue.Value, fn func(tsast.Ident)) error {
 	if ev.Subsume(tv) != nil {
 		err := valError(v, "may only apply values to an enum that are members of that enum; %#v is not a member of %#v", tv, ev)
 		g.addErr(err)
-		return nil, err
+		return err
 	}
 	pairs, err := enumPairs(ev)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, pair := range pairs {
 		if veq(pair.val, tv) {
-			return &tsast.Ident{Name: pair.name}, nil
+			fn(tsast.Ident{Name: pair.name})
+			return nil
 		}
 	}
 

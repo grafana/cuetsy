@@ -7,7 +7,7 @@
 #Expressions: {
    sEnum: (#StringEnum & "a") | (#StringEnum & "b")
    sEnumMem: (#StringEnumWithMemberTypes & "a") | (#StringEnumWithMemberTypes & "b")
-   iEnum: (#IntEnum & 1) | (#IntEnum & 2)
+   iEnum: (#IntEnum & 1) | (#IntEnum & 2) | (#IntEnum & 3)
    normal: #StringEnum & "a"
 } @cuetsy(kind="interface")
 
@@ -32,7 +32,7 @@ export enum IntEnum {
 }
 
 export interface Expressions {
-  iEnum: (IntEnum.First | IntEnum.Second);
+  iEnum: (IntEnum.First | IntEnum.Second | IntEnum.Third);
   normal: StringEnum.A;
   sEnum: (StringEnum.A | StringEnum.B);
   sEnumMem: (StringEnumWithMemberTypes.First | StringEnumWithMemberTypes.Second);
