@@ -1,6 +1,6 @@
 module github.com/grafana/cuetsy
 
-go 1.16
+go 1.19
 
 require (
 	cuelang.org/go v0.5.0-beta.5
