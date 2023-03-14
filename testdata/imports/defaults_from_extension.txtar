@@ -1,0 +1,36 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+#Struct: {
+    dep.#Base
+    baseEnum: dep.#BaseEnum & (*"enumA" | _|_)
+    show: bool | *true
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+#BaseType: "typeA" | "typeB" @cuetsy(kind="type")
+#BaseEnum: "enumA" | "enumB" @cuetsy(kind="enum")
+
+#Base: {
+  baseEnum: #BaseEnum
+  show:     bool
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface Struct extends dep.Base {
+  baseEnum: BaseEnum;
+  show: boolean;
+}
+
+export const defaultStruct: Partial<Struct> = {
+  baseEnum: BaseEnum.EnumA,
+  show: true,
+};

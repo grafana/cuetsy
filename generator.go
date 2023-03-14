@@ -509,7 +509,12 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			// Theoretically, lattice equality can be defined as bijective
 			// subsumption. In practice, Subsume() seems to ignore optional
 			// fields, and Equals() doesn't. So, use Equals().
-			if sub.Exists() && sub.Equals(iter.Value()) {
+
+			val, has := iter.Value().Default()
+
+			// Lists has defaults by default, and we want to skip them to avoid to generate defaults with empty lists.
+			noDefaults := !has || val.Kind() == cue.ListKind
+			if sub.Exists() && sub.Equals(iter.Value()) && noDefaults {
 				continue
 			}
 		}
@@ -741,28 +746,27 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		panic("unreachable")
 	case 1:
 	case 2:
-		// The only case we actually want to support, at least for now, is this:
-		//
-		//   enum: "foo" | "bar" @cuetsy(kind="enum")
-		//   enumref: enum & "foo" @cuetsy(kind="type")
-		//
-		// Where we render enumref to TS as `Enumref: Enum.Foo`.
-		// For that case, we allow at most two conjuncts, and make sure they
-		// fit the pattern of the two operands above.
-		aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
-		aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
-		var cr cue.Value
-		if aref {
-			cr, lit = conjuncts[0], &(conjuncts[1])
-		} else {
-			cr, lit = conjuncts[1], &(conjuncts[0])
+		var err error
+		lit, err = getEnumLiteral(conjuncts)
+		if err != nil {
+			ve := valError(v, err.Error())
+			g.addErr(ve)
+			return nil, ve
 		}
-		if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
-			ve := valError(v, "may only unify a referenced enum with a concrete literal member of that enum")
+	case 3:
+		if !conjuncts[0].Equals(conjuncts[1]) {
+			ve := valError(v, "complex unifications containing references to enums without overriding parent are not currently supported")
 			g.addErr(ve)
 			return nil, ve
 		}
 
+		var err error
+		lit, err = getEnumLiteral(conjuncts[1:])
+		if err != nil {
+			ve := valError(v, err.Error())
+			g.addErr(ve)
+			return nil, ve
+		}
 	default:
 		ve := valError(v, "complex unifications containing references to enums are not currently supported")
 		g.addErr(ve)
@@ -816,9 +820,41 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		} else {
 			return nil, err
 		}
+	case 3:
+		if defaultIdent, err := findIdent(ev, *lit); err == nil {
+			ref.D = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
+		} else {
+			return nil, err
+		}
 	}
 
 	return ref, nil
+}
+
+func getEnumLiteral(conjuncts []cue.Value) (*cue.Value, error) {
+	var lit *cue.Value
+	// The only case we actually want to support, at least for now, is this:
+	//
+	//   enum: "foo" | "bar" @cuetsy(kind="enum")
+	//   enumref: enum & "foo" @cuetsy(kind="type")
+	//
+	// Where we render enumref to TS as `Enumref: Enum.Foo`.
+	// For that case, we allow at most two conjuncts, and make sure they
+	// fit the pattern of the two operands above.
+	aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
+	aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
+	var cr cue.Value
+	if aref {
+		cr, lit = conjuncts[0], &(conjuncts[1])
+	} else {
+		cr, lit = conjuncts[1], &(conjuncts[0])
+	}
+
+	if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
+		return nil, errors.New("may only unify a referenced enum with a concrete literal member of that enum")
+	}
+
+	return lit, nil
 }
 
 // typeRef is a pair of expressions for referring to another type - the reference
@@ -1248,6 +1284,7 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 		// (We can't do cycle detection with the meager tools
 		// exported in cuelang.org/go/cue, so all we have for the
 		// parent case is hopium.)
+
 		if _, ok := dvals[1].Source().(*ast.Ident); ok && targetsKind(deref, kinds...) {
 			return ts.Ident(dstr), nil
 		}
