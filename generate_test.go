@@ -62,6 +62,9 @@ func TestGenerateWithImports(t *testing.T) {
 
 		b, err := cuetsy.Generate(v, cuetsy.Config{
 			Export: true,
+			ImportMapper: func(string) (string, error) {
+				return "", nil
+			},
 		})
 		if err != nil {
 			errors.Print(t, err, nil)

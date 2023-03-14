@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
 )
 
@@ -12,7 +13,37 @@ func tpv(v cue.Value) {
 	fmt.Printf("%s:\n%s\n", v.Path(), exprTree(v))
 }
 
+func findInstance(raw cue.Value) *build.Instance {
+	// Search, recursively, for cue.Value.BuildInstance() on:
+	// - the provided raw node
+	// - the first direct conjunct of the raw node, if any
+	// - the ReferencePath() result, if different, of either of the above
+
+	bi := raw.BuildInstance()
+	if bi != nil {
+		return bi
+	}
+
+	if ref, path := raw.ReferencePath(); len(path.Selectors()) != 0 && ref != raw {
+		if bi = findInstance(ref); bi != nil {
+			return bi
+		}
+	}
+
+	// No instance on anything reachable from the value itself. Try again with any
+	// immediate conjuncts.
+	if op, dvals := raw.Expr(); op == cue.AndOp {
+		// Only try the first value, which will represent the package. Additional values
+		// will be constraints specified on the whole package instance.
+		bi = findInstance(dvals[0])
+	}
+
+	return bi
+}
+
 func isReference(v cue.Value) bool {
+	// return cue.Dereference(v) == v
+	// FIXME the below impl is just wrong, but current behavior somehow relies on it. Above is correct, it's a pointer comparison
 	_, path := v.ReferencePath()
 	return len(path.Selectors()) > 0
 }
