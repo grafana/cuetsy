@@ -1285,7 +1285,6 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 		// (We can't do cycle detection with the meager tools
 		// exported in cuelang.org/go/cue, so all we have for the
 		// parent case is hopium.)
-
 		if _, ok := dvals[1].Source().(*ast.Ident); ok && targetsKind(deref, kinds...) {
 			return ts.Ident(dstr), nil
 		}
