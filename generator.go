@@ -754,6 +754,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 			return nil, ve
 		}
 	case 3:
+		// It could happen when we are setting a default value into a parent field.
 		if !conjuncts[0].Equals(conjuncts[1]) {
 			ve := valError(v, "complex unifications containing references to enums without overriding parent are not currently supported")
 			g.addErr(ve)
