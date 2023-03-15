@@ -20,6 +20,8 @@ package dep
 
 #Base: {
   baseEnum: #BaseEnum
+  defaultBaseEnum: #BaseEnum | *"enumB"
+  valueWithValidator?: int32 & >=0
   show:     bool
 } @cuetsy(kind="interface")
 

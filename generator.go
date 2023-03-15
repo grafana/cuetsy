@@ -510,11 +510,13 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			// subsumption. In practice, Subsume() seems to ignore optional
 			// fields, and Equals() doesn't. So, use Equals().
 
-			val, has := iter.Value().Default()
-
-			// Lists has defaults by default, and we want to skip them to avoid to generate defaults with empty lists.
-			noDefaults := !has || val.Kind() == cue.ListKind
-			if sub.Exists() && sub.Equals(iter.Value()) && noDefaults {
+			// We need to check if the child overrides the parent. In that case, we have an AndOp that
+			// tell us that it is setting a value.
+			op, _ := iter.Value().Expr()
+			// Also we need to check if the sub operator to discard the one that have validators and if it has a default
+			subOp, _ := sub.Expr()
+			_, def := sub.Default()
+			if sub.Exists() && sub.Equals(iter.Value()) && (subOp == cue.AndOp || op != cue.AndOp || !def) {
 				continue
 			}
 		}
