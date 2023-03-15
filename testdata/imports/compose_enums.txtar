@@ -20,10 +20,12 @@ Compose: {
     localnumover: LocalEnumNumericD & (*2 | _)
     impstr: dep.DepEnum & (*"bar" | _)
     impstrd: dep.DepEnumD
-    impstrover: dep.DepEnumD & (*"bar" | _)
+    impstrover: dep.DepEnumD | *"bar"
     impnum: dep.DepEnumNumeric & (*3 | _)
     impnumd: dep.DepEnumNumericD
-    impnumover: dep.DepEnumNumericD & (*3 | _)
+    impnumover: dep.DepEnumNumericD | *3
+    union: (dep.DepEnumNumericD & 2) | (dep.DepEnumNumericD & 3)
+    unionStrings: (LocalEnum & "bar") | (LocalEnum & "foo") | (LocalEnum & "baz")
 } @cuetsy(kind="interface")
 
 -- dep/file.cue --
@@ -77,15 +79,17 @@ export interface Compose {
   localstr: LocalEnum;
   localstrd: LocalEnumD;
   localstrover: LocalEnumD;
+  union: dep.DepEnumNumericD;
+  unionStrings: LocalEnum;
 }
 
 export const defaultCompose: Partial<Compose> = {
   impnum: dep.DepEnumNumeric.Three,
   impnumd: dep.DepEnumNumericD.One,
-  impnumover: dep.DepEnumNumericD.Three,
+  impnumover: 3,
   impstr: dep.DepEnum.Bar,
   impstrd: dep.DepEnumD.Foo,
-  impstrover: dep.DepEnumD.Bar,
+  impstrover: 'bar',
   localnum: LocalEnumNumeric.Two,
   localnumd: LocalEnumNumericD.One,
   localnumover: LocalEnumNumericD.Two,

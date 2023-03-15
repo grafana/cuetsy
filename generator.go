@@ -661,13 +661,27 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
 	) {
 		op, args := v.Expr()
-		if op != cue.OrOp {
+		if op == cue.AndOp {
 			return g.genEnumReference(v)
 		}
+
+		// Check if has defaults
 		for _, a := range args {
 			if a.IncompleteKind() == cue.TopKind {
 				return g.genEnumReference(v)
 			}
+		}
+
+		// Check if it is a union
+		isUnion := true
+		for _, a := range args {
+			if a.Kind() != a.IncompleteKind() {
+				isUnion = false
+			}
+		}
+
+		if isUnion {
+			return g.genEnumReference(v)
 		}
 	}
 
