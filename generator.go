@@ -515,7 +515,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			op, _ := iter.Value().Expr()
 			// Also we need to check if the sub operator to discard the one that have validators and if it has a default
 			subOp, _ := sub.Expr()
-			_, def := sub.Default()
+			_, def := iter.Value().Default()
 			if sub.Exists() && sub.Equals(iter.Value()) && (subOp == cue.AndOp || op != cue.AndOp || !def) {
 				continue
 			}
