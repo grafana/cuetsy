@@ -1,0 +1,43 @@
+-- cue --
+
+#Enum: "a" | "b" | "c" @cuetsy(kind="enum")
+
+#Base: {
+    valueEnum:   #Enum
+    defaultEnum: #Enum
+} @cuetsy(kind="interface")
+
+#StructWithDefaults: {
+    #Base
+    baseEnum:              #Enum
+    valueEnum:             #Enum & "a"
+    defaultEnum:           #Enum | *"a"
+    noOverrideDefaultEnum: #Enum | *"b"
+    noOverrideEnum:        #Enum & "b"
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export enum Enum {
+  A = 'a',
+  B = 'b',
+  C = 'c',
+}
+
+export interface Base {
+  defaultEnum: Enum;
+  valueEnum: Enum;
+}
+
+export interface StructWithDefaults extends Base {
+  baseEnum: Enum;
+  defaultEnum: Enum;
+  noOverrideDefaultEnum: Enum;
+  noOverrideEnum: Enum.B;
+  valueEnum: Enum.A;
+}
+
+export const defaultStructWithDefaults: Partial<StructWithDefaults> = {
+  defaultEnum: Enum.A,
+  noOverrideDefaultEnum: Enum.B,
+};

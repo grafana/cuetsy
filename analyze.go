@@ -225,6 +225,7 @@ func findRefWithKind(v cue.Value, kinds ...TSType) (ref, referrer cue.Value, has
 // appendSplit splits a cue.Value into the
 func appendSplit(a []cue.Value, splitBy cue.Op, v cue.Value) []cue.Value {
 	op, args := v.Expr()
+
 	// dedup elements.
 	k := 1
 outer:
@@ -248,6 +249,12 @@ outer:
 	} else {
 		for _, v := range args {
 			a = appendSplit(a, splitBy, v)
+		}
+	}
+
+	if defaultValue, is := v.Default(); is {
+		if o, _ := v.Expr(); o == cue.NoOp {
+			a = append(a, defaultValue)
 		}
 	}
 	return a

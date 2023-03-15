@@ -509,7 +509,14 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			// Theoretically, lattice equality can be defined as bijective
 			// subsumption. In practice, Subsume() seems to ignore optional
 			// fields, and Equals() doesn't. So, use Equals().
-			if sub.Exists() && sub.Equals(iter.Value()) {
+
+			// We need to check if the child overrides the parent. In that case, we have an AndOp that
+			// tell us that it is setting a value.
+			op, _ := iter.Value().Expr()
+			// Also we need to check if the sub operator to discard the one that have validators and if it has a default
+			subOp, _ := sub.Expr()
+			_, def := iter.Value().Default()
+			if sub.Exists() && sub.Equals(iter.Value()) && (subOp == cue.AndOp || op != cue.AndOp || !def) {
 				continue
 			}
 		}
@@ -741,28 +748,28 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		panic("unreachable")
 	case 1:
 	case 2:
-		// The only case we actually want to support, at least for now, is this:
-		//
-		//   enum: "foo" | "bar" @cuetsy(kind="enum")
-		//   enumref: enum & "foo" @cuetsy(kind="type")
-		//
-		// Where we render enumref to TS as `Enumref: Enum.Foo`.
-		// For that case, we allow at most two conjuncts, and make sure they
-		// fit the pattern of the two operands above.
-		aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
-		aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
-		var cr cue.Value
-		if aref {
-			cr, lit = conjuncts[0], &(conjuncts[1])
-		} else {
-			cr, lit = conjuncts[1], &(conjuncts[0])
+		var err error
+		lit, err = getEnumLiteral(conjuncts)
+		if err != nil {
+			ve := valError(v, err.Error())
+			g.addErr(ve)
+			return nil, ve
 		}
-		if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
-			ve := valError(v, "may only unify a referenced enum with a concrete literal member of that enum")
+	case 3:
+		// It could happen when we are setting a default value into a parent field.
+		if !conjuncts[0].Equals(conjuncts[1]) {
+			ve := valError(v, "complex unifications containing references to enums without overriding parent are not currently supported")
 			g.addErr(ve)
 			return nil, ve
 		}
 
+		var err error
+		lit, err = getEnumLiteral(conjuncts[1:])
+		if err != nil {
+			ve := valError(v, err.Error())
+			g.addErr(ve)
+			return nil, ve
+		}
 	default:
 		ve := valError(v, "complex unifications containing references to enums are not currently supported")
 		g.addErr(ve)
@@ -807,18 +814,48 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 				return nil, err
 			}
 		}
-	case 2:
-		if typeIdent, err := findIdent(ev, *lit); err == nil {
-			ref.T = tsast.SelectorExpr{
-				Expr: ref.T,
-				Sel:  *typeIdent,
-			}
+	case 2, 3:
+		var rr tsast.Expr
+		if defaultIdent, err := findIdent(ev, *lit); err == nil {
+			rr = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
 		} else {
 			return nil, err
+		}
+
+		if _, has := v.Default(); has {
+			ref.D = rr
+		} else {
+			ref.T = rr
 		}
 	}
 
 	return ref, nil
+}
+
+func getEnumLiteral(conjuncts []cue.Value) (*cue.Value, error) {
+	var lit *cue.Value
+	// The only case we actually want to support, at least for now, is this:
+	//
+	//   enum: "foo" | "bar" @cuetsy(kind="enum")
+	//   enumref: enum & "foo" @cuetsy(kind="type")
+	//
+	// Where we render enumref to TS as `Enumref: Enum.Foo`.
+	// For that case, we allow at most two conjuncts, and make sure they
+	// fit the pattern of the two operands above.
+	aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
+	aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
+	var cr cue.Value
+	if aref {
+		cr, lit = conjuncts[0], &(conjuncts[1])
+	} else {
+		cr, lit = conjuncts[1], &(conjuncts[0])
+	}
+
+	if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
+		return nil, errors.New(fmt.Sprintf("may only unify a referenced enum with a concrete literal member of that enum. Path: %s", conjuncts[0].Path()))
+	}
+
+	return lit, nil
 }
 
 // typeRef is a pair of expressions for referring to another type - the reference
