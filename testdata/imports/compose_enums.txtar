@@ -12,18 +12,18 @@ LocalEnumNumeric: 1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 LocalEnumNumericD: *1 | 2 | 3 @cuetsy(kind="enum", memberNames="One|Two|Three")
 
 Compose: {
-    localstr: LocalEnum | *"baz"
+    localstr: LocalEnum & (*"baz" | _)
     localstrd: LocalEnumD
-    localstrover: LocalEnumD | *"baz"
-    localnum: LocalEnumNumeric | *2
+    localstrover: LocalEnumD & (*"baz" | _)
+    localnum: LocalEnumNumeric & (*2 | _)
     localnumd: LocalEnumNumericD
-    localnumover: LocalEnumNumericD | *2
-    impstr: dep.DepEnum | *"bar"
+    localnumover: LocalEnumNumericD & (*2 | _)
+    impstr: dep.DepEnum & (*"bar" | _)
     impstrd: dep.DepEnumD
-    impstrover: dep.DepEnumD | *"bar"
-    impnum: dep.DepEnumNumeric | *3
+    impstrover: dep.DepEnumD & (*"bar" | _)
+    impnum: dep.DepEnumNumeric & (*3 | _)
     impnumd: dep.DepEnumNumericD
-    impnumover: dep.DepEnumNumericD | *3
+    impnumover: dep.DepEnumNumericD & (*3 | _)
 } @cuetsy(kind="interface")
 
 -- dep/file.cue --

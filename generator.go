@@ -660,7 +660,15 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 		isReference,
 		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
 	) {
-		return g.genEnumReference(v)
+		op, args := v.Expr()
+		if op != cue.OrOp {
+			return g.genEnumReference(v)
+		}
+		for _, a := range args {
+			if a.IncompleteKind() == cue.TopKind {
+				return g.genEnumReference(v)
+			}
+		}
 	}
 
 	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
@@ -749,6 +757,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	case 1:
 	case 2:
 		var err error
+		conjuncts[1] = getDefaultEnumValue(conjuncts[1])
 		lit, err = getEnumLiteral(conjuncts)
 		if err != nil {
 			ve := valError(v, err.Error())
@@ -756,8 +765,11 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 			return nil, ve
 		}
 	case 3:
-		// It could happen when we are setting a default value into a parent field.
-		if !conjuncts[0].Equals(conjuncts[1]) {
+		if conjuncts[1].IncompleteKind() == cue.TopKind {
+			conjuncts[1] = conjuncts[0]
+		}
+
+		if !conjuncts[0].Equals(conjuncts[1]) && conjuncts[0].Subsume(conjuncts[1]) != nil {
 			ve := valError(v, "complex unifications containing references to enums without overriding parent are not currently supported")
 			g.addErr(ve)
 			return nil, ve
@@ -822,7 +834,13 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 			return nil, err
 		}
 
-		if _, has := v.Default(); has {
+		op, args := v.Expr()
+		hasInnerDefault := false
+		if len(args) == 2 && op == cue.AndOp {
+			_, hasInnerDefault = args[1].Default()
+		}
+
+		if _, has := v.Default(); has || hasInnerDefault {
 			ref.D = rr
 		} else {
 			ref.T = rr
@@ -856,6 +874,27 @@ func getEnumLiteral(conjuncts []cue.Value) (*cue.Value, error) {
 	}
 
 	return lit, nil
+}
+
+// getDefaultEnumValue is looking for default values like #Enum & (*"default" | _) struct
+func getDefaultEnumValue(v cue.Value) cue.Value {
+	if v.IncompleteKind() != cue.TopKind {
+		return v
+	}
+
+	op, args := v.Expr()
+	if op != cue.OrOp {
+		return v
+	}
+
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			if def, has := a.Default(); has {
+				return def
+			}
+		}
+	}
+	return v
 }
 
 // typeRef is a pair of expressions for referring to another type - the reference

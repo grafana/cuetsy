@@ -11,9 +11,11 @@
     #Base
     baseEnum:              #Enum
     valueEnum:             #Enum & "a"
-    defaultEnum:           #Enum | *"a"
-    noOverrideDefaultEnum: #Enum | *"b"
+    defaultEnum:           #Enum | (*"a" | _)
+    noOverrideDefaultEnum: #Enum | (*"b" | _)
     noOverrideEnum:        #Enum & "b"
+    defaultString:         #Enum | *"invalid"
+    defaultNumber:         #Enum | "something" | *34
 } @cuetsy(kind="interface")
 
 -- ts --
@@ -32,6 +34,8 @@ export interface Base {
 export interface StructWithDefaults extends Base {
   baseEnum: Enum;
   defaultEnum: Enum;
+  defaultNumber: Enum;
+  defaultString: Enum;
   noOverrideDefaultEnum: Enum;
   noOverrideEnum: Enum.B;
   valueEnum: Enum.A;
@@ -39,5 +43,7 @@ export interface StructWithDefaults extends Base {
 
 export const defaultStructWithDefaults: Partial<StructWithDefaults> = {
   defaultEnum: Enum.A,
+  defaultNumber: 34,
+  defaultString: 'invalid',
   noOverrideDefaultEnum: Enum.B,
 };
