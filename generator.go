@@ -651,40 +651,12 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 
 // Generate a typeRef for the cue.Value
 func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
-	tref := &typeRef{}
-	var err error
-
-	// Check if we've got an enum reference at top depth or one down. If we do, it
-	// changes how we generate.
-	if containsPred(v, 1,
-		isReference,
-		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
-	) {
-		op, args := v.Expr()
-		if op == cue.AndOp {
-			return g.genEnumReference(v)
-		}
-
-		// Check if has defaults
-		for _, a := range args {
-			if a.IncompleteKind() == cue.TopKind {
-				return g.genEnumReference(v)
-			}
-		}
-
-		// Check if it is a union
-		isUnion := true
-		for _, a := range args {
-			if a.Kind() != a.IncompleteKind() {
-				isUnion = false
-			}
-		}
-
-		if isUnion {
-			return g.genEnumReference(v)
-		}
+	if hasEnumReference(v) {
+		return g.genEnumReference(v)
 	}
 
+	tref := &typeRef{}
+	var err error
 	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
 	if !containsCuetsyReference(v) {
 		tref.T, err = tsprintField(v, true)
@@ -739,6 +711,38 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 	}
 	g.addErr(err)
 	return tref, err
+}
+
+func hasEnumReference(v cue.Value) bool {
+	// Check if we've got an enum reference at top depth or one down. If we do, it
+	// changes how we generate.
+	hasPred := containsPred(v, 1,
+		isReference,
+		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
+	)
+
+	// Check if it setting an enum value [Enum & "value"]
+	op, args := v.Expr()
+	if op == cue.AndOp {
+		return hasPred
+	}
+
+	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			return hasPred
+		}
+	}
+
+	// Check if it is a union [(Enum & "a") | (Enum & "b")]
+	isUnion := true
+	for _, a := range args {
+		if a.Kind() != a.IncompleteKind() {
+			isUnion = false
+		}
+	}
+
+	return hasPred && isUnion
 }
 
 // Generate a typeref for a value that refers to a field
