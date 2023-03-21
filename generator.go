@@ -506,10 +506,11 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			}
 
 			sub := nolit.LookupPath(cue.MakePath(sel))
-			// Theoretically, lattice equality can be defined as bijective
-			// subsumption. In practice, Subsume() seems to ignore optional
-			// fields, and Equals() doesn't. So, use Equals().
-			if sub.Exists() && sub.Equals(iter.Value()) {
+			op, _ := iter.Value().Expr()
+			// Also we need to check if the sub operator to discard the one that have validators and if it has a default
+			subOp, _ := sub.Expr()
+			_, def := iter.Value().Default()
+			if sub.Exists() && sub.Equals(iter.Value()) && (subOp == cue.AndOp || op != cue.AndOp || !def) {
 				continue
 			}
 		}
@@ -656,52 +657,14 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 		return g.genEnumReference(v)
 	}
 
-	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
-	if !containsCuetsyReference(v) {
-		tref.T, err = tsprintField(v, true)
-		if err != nil {
+	tref.T, err = tsprintField(v, true)
+	if err != nil {
+		if !containsCuetsyReference(v) {
 			g.addErr(valError(v, "could not generate field: %w", err))
 			return nil, err
 		}
-	} else {
-		expr, err := tsprintField(v, true)
-		if err != nil {
-			g.addErr(err)
-			return nil, nil
-		}
-		tref.T = expr
-
-		// Deconstruct the field's expressions.
-		// conjuncts := appendSplit(nil, cue.AndOp, v)
-
-		// var expr ts.Expr
-		//
-		// for _, cv := range conjuncts {
-		// 	disjuncts := appendSplit(nil, cue.OrOp, cv)
-		// 	for i, dv := range disjuncts {
-		// 		if _, r := dv.Reference(); len(r) == 0 {
-		// 			disjuncts[i] = dv.Eval()
-		// 		}
-		// 	}
-		// 	switch len(disjuncts) {
-		// 	case 0:
-		// 		// conjunct eliminated - need more preprocessing to actually make this possible
-		// 		panic("TODO, unreachable")
-		// 	case 1:
-		// 		err := disjuncts[0].Err()
-		// 		if err != nil {
-		// 			g.addErr(valError(v, "invalid value"))
-		// 			return nil
-		// 		}
-		// 		expr, err = tsprintField(disjuncts[0])
-		// 		if err != nil {
-		// 			g.addErr(valError(v, "invalid value"))
-		// 			return nil
-		// 		}
-		// 	default:
-		// 		// TODO create disjunction handler
-		// 	}
-		// }
+		g.addErr(err)
+		return nil, nil
 	}
 
 	exists, defExpr, err := tsPrintDefault(v)
@@ -859,6 +822,7 @@ func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	// }
 
 	if ok {
+		d = getTypeDefaultOverride(d)
 		expr, err := tsprintField(d, false)
 		if err != nil {
 			return false, nil, err
@@ -879,7 +843,20 @@ func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 
 		return true, expr, nil
 	}
+
 	return false, nil, nil
+}
+
+func getTypeDefaultOverride(v cue.Value) cue.Value {
+	op, expr := v.Expr()
+	if op != cue.AndOp || len(expr) < 2 {
+		return v
+	}
+
+	if def, ok := expr[1].Default(); ok {
+		return def
+	}
+	return v
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided
@@ -1198,7 +1175,7 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 // attribute. The variadic parameter determines which kinds will be treated as
 // permissible. By default, all kinds are permitted.
 //
-// An nil expr indicates a reference is not allowable, including the case
+// A nil expr indicates a reference is not allowable, including the case
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
 func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
@@ -1269,6 +1246,8 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 				Sel:  ts.Ident(dstr),
 			}, nil
 		}
+
+		return ts.Ident(dstr), nil
 	default:
 		return nil, valError(v, "unknown selector subject type %T, cannot translate path %s", dvals[0].Source(), v.Path().String())
 	}

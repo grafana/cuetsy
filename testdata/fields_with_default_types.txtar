@@ -1,0 +1,44 @@
+-- cue --
+
+#Type: "a" | "b" | "c" @cuetsy(kind="type")
+
+#Base: {
+    valueType:   #Type
+    defaultType: #Type
+} @cuetsy(kind="interface")
+
+#StructWithDefaults: {
+    #Base
+    baseType:              #Type
+    valueType:             #Type
+    defaultType:           #Type | (*"a" | _)
+    noOverrideDefaultType: #Type | (*"b" | _)
+    noOverrideType:        #Type
+    defaultString:         #Type | *"invalid"
+    defaultNumber:         #Type | "something" | *34
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export type Type = ('a' | 'b' | 'c');
+
+export interface Base {
+  defaultType: Type;
+  valueType: Type;
+}
+
+export interface StructWithDefaults extends Base {
+  baseType: Type;
+  defaultNumber: Type;
+  defaultString: Type;
+  defaultType: Type;
+  noOverrideDefaultType: Type;
+  noOverrideType: Type;
+}
+
+export const defaultStructWithDefaults: Partial<StructWithDefaults> = {
+  defaultNumber: 34,
+  defaultString: 'invalid',
+  defaultType: 'a',
+  noOverrideDefaultType: 'b',
+};

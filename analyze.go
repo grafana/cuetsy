@@ -130,7 +130,7 @@ func hasOverrideValues(v cue.Value, kinds ...TSType) bool {
 	}
 
 	defaultOp, _ := values[1].Expr()
-	if defaultOp == cue.AndOp {
+	if defaultOp == cue.AndOp || defaultOp == cue.OrOp {
 		return false
 	}
 
