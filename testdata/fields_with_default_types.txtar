@@ -11,8 +11,8 @@
     #Base
     baseType:              #Type
     valueType:             #Type
-    defaultType:           #Type | (*"a" | _)
-    noOverrideDefaultType: #Type | (*"b" | _)
+    defaultType:           #Type & (*"a" | _)
+    noOverrideDefaultType: #Type & (*"b" | _)
     noOverrideType:        #Type
     defaultString:         #Type | *"invalid"
     defaultNumber:         #Type | "something" | *34

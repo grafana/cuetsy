@@ -822,7 +822,6 @@ func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	// }
 
 	if ok {
-		d = getTypeDefaultOverride(d)
 		expr, err := tsprintField(d, false)
 		if err != nil {
 			return false, nil, err
@@ -845,18 +844,6 @@ func tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	}
 
 	return false, nil, nil
-}
-
-func getTypeDefaultOverride(v cue.Value) cue.Value {
-	op, expr := v.Expr()
-	if op != cue.AndOp || len(expr) < 2 {
-		return v
-	}
-
-	if def, ok := expr[1].Default(); ok {
-		return def
-	}
-	return v
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided
@@ -1247,7 +1234,11 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 			}, nil
 		}
 
-		return ts.Ident(dstr), nil
+		// It happens when we are overriding a Type parent with a default value. Because `hasOverrides` is true,
+		// dstr is the default value, and we need to set the Type name here
+		if str, ok := dvals[0].Source().(fmt.Stringer); ok {
+			return ts.Ident(str.String()), nil
+		}
 	default:
 		return nil, valError(v, "unknown selector subject type %T, cannot translate path %s", dvals[0].Source(), v.Path().String())
 	}
