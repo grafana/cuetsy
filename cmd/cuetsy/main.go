@@ -19,7 +19,6 @@ type Options struct {
 }
 
 func convert(options Options) error {
-
 	wd, err := os.Getwd()
 	if err != nil {
 		os.Exit(1)
@@ -40,7 +39,6 @@ func convert(options Options) error {
 	for _, inst := range instances {
 		b, err := cuetsy.Generate(inst.Value(), cuetsy.Config{Export: options.Export})
 		if err != nil {
-
 			errors.Print(os.Stderr, err, &errors.Config{
 				Cwd: wd,
 			})
@@ -50,9 +48,9 @@ func convert(options Options) error {
 		if options.DestinationPath == "-" {
 			fmt.Println(string(b))
 		} else {
-
 			fd, err := os.Create(options.DestinationPath)
 			if err != nil {
+				fmt.Println(err.Error())
 				return err
 			}
 
@@ -65,9 +63,7 @@ func convert(options Options) error {
 }
 
 func main() {
-
 	options := Options{}
-
 	app := &cli.App{
 		Name:  "cuetsy",
 		Usage: "Converting CUE objects to their TypeScript equivalent.",
@@ -92,7 +88,6 @@ func main() {
 			},
 		},
 		Action: func(cCtx *cli.Context) error {
-
 			if len(os.Args) == 1 {
 				fmt.Fprint(os.Stderr,
 					`
@@ -107,12 +102,11 @@ Try 'cuetsy --help' for more information.
 				options.CuePath = os.Args[1]
 			}
 
-			if options.DestinationPath == "" {
+			if options.DestinationPath == "" && len(os.Args) > 2 {
 				options.DestinationPath = options.CuePath[:len(options.CuePath)-3] + "ts"
 			}
 
 			convert(options)
-
 			return nil
 		},
 	}
@@ -120,7 +114,6 @@ Try 'cuetsy --help' for more information.
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
-
 	os.Exit(0)
 
 }
