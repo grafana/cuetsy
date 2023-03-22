@@ -1,0 +1,28 @@
+-- cue --
+MyStruct: {} @cuetsy(kind="interface")
+
+Recursive: {
+    myValue: string
+    value: null | Recursive
+    list: [...Recursive]
+    map: [string]: Recursive
+    multipleValues: 23 | "abc" | [...MyStruct] | [...Recursive]
+    union: [...MyStruct] | [...Recursive]
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export interface MyStruct {}
+
+export interface Recursive {
+  list: Array<Recursive>;
+  map: Record<string, Recursive>;
+  multipleValues: (23 | 'abc' | Array<MyStruct> | Array<Recursive>);
+  myValue: string;
+  union: (Array<MyStruct> | Array<Recursive>);
+  value: Recursive;
+}
+
+export const defaultRecursive: Partial<Recursive> = {
+  list: [],
+};
