@@ -985,7 +985,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	if containsCuetsyReference(v) {
+	if containsCuetsyReference(v, TypeAlias, TypeInterface) || hasEnumReference(v) {
 		ref, err := referenceValueAs(v)
 		if err != nil {
 			return nil, err

@@ -34,8 +34,8 @@ export interface Base {
 export interface StructWithDefaults extends Base {
   baseEnum: Enum;
   defaultEnum: Enum;
-  defaultNumber: Enum;
-  defaultString: Enum;
+  defaultNumber: (Enum | 'something' | 34);
+  defaultString: (Enum | 'invalid');
   noOverrideDefaultEnum: Enum;
   noOverrideEnum: Enum.B;
   valueEnum: Enum.A;

@@ -69,10 +69,10 @@ export const defaultLocalEnumNumericD: LocalEnumNumericD = LocalEnumNumericD.One
 export interface Compose {
   impnum: dep.DepEnumNumeric;
   impnumd: dep.DepEnumNumericD;
-  impnumover: dep.DepEnumNumericD;
+  impnumover: (dep.DepEnumNumericD | 3);
   impstr: dep.DepEnum;
   impstrd: dep.DepEnumD;
-  impstrover: dep.DepEnumD;
+  impstrover: (dep.DepEnumD | 'bar');
   localnum: LocalEnumNumeric;
   localnumd: LocalEnumNumericD;
   localnumover: LocalEnumNumericD;
