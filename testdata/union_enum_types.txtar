@@ -9,6 +9,10 @@
    sEnumMem: (#StringEnumWithMemberTypes & "a") | (#StringEnumWithMemberTypes & "b")
    iEnum: (#IntEnum & 1) | (#IntEnum & 2) | (#IntEnum & 3)
    normal: #StringEnum & "a"
+   nested: {
+        nestedEnum: #StringEnum & "a"
+        nestedUnionEnum: (#StringEnum & "a") | (#StringEnum & "b")
+   }
 } @cuetsy(kind="interface")
 
 -- ts --
@@ -33,6 +37,10 @@ export enum IntEnum {
 
 export interface Expressions {
   iEnum: (IntEnum.First | IntEnum.Second | IntEnum.Third);
+  nested: {
+    nestedEnum: StringEnum.A;
+    nestedUnionEnum: (StringEnum.A | StringEnum.B);
+  };
   normal: StringEnum.A;
   sEnum: (StringEnum.A | StringEnum.B);
   sEnumMem: (StringEnumWithMemberTypes.First | StringEnumWithMemberTypes.Second);
