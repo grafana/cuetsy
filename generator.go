@@ -1126,6 +1126,10 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 			v = dvals[0]
 		}
 
+		if op == cue.OrOp {
+			return disj(dvals)
+		}
+
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		if e.Exists() {
 			expr, err := tsprintField(e, isType)
@@ -1166,6 +1170,9 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 		// with disjunctions and basic types.
 		switch op {
 		case cue.OrOp:
+			if len(dvals) == 2 && dvals[0].Kind() == cue.NullKind {
+				return tsprintField(dvals[1], isType)
+			}
 			return disj(dvals)
 		case cue.NoOp, cue.AndOp:
 			// There's no op for simple unification; it's a basic type, and can
