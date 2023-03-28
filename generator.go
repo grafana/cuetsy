@@ -506,6 +506,12 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 			}
 
 			sub := nolit.LookupPath(cue.MakePath(sel))
+			// Theoretically, lattice equality can be defined as bijective
+			// subsumption. In practice, Subsume() seems to ignore optional
+			// fields, and Equals() doesn't. So, use Equals().
+
+			// We need to check if the child overrides the parent. In that case, we have an AndOp that
+			// tell us that it is setting a value.
 			op, _ := iter.Value().Expr()
 			// Also we need to check if the sub operator to discard the one that have validators and if it has a default
 			subOp, _ := sub.Expr()
@@ -645,18 +651,12 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 
 // Generate a typeRef for the cue.Value
 func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
-	tref := &typeRef{}
-	var err error
-
-	// Check if we've got an enum reference at top depth or one down. If we do, it
-	// changes how we generate.
-	if containsPred(v, 1,
-		isReference,
-		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
-	) {
+	if hasEnumReference(v) {
 		return g.genEnumReference(v)
 	}
 
+	tref := &typeRef{}
+	var err error
 	tref.T, err = tsprintField(v, true)
 	if err != nil {
 		if !containsCuetsyReference(v) {
@@ -673,6 +673,38 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 	}
 	g.addErr(err)
 	return tref, err
+}
+
+func hasEnumReference(v cue.Value) bool {
+	// Check if we've got an enum reference at top depth or one down. If we do, it
+	// changes how we generate.
+	hasPred := containsPred(v, 1,
+		isReference,
+		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
+	)
+
+	// Check if it setting an enum value [Enum & "value"]
+	op, args := v.Expr()
+	if op == cue.AndOp {
+		return hasPred
+	}
+
+	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			return hasPred
+		}
+	}
+
+	// Check if it is a union [(Enum & "a") | (Enum & "b")]
+	isUnion := true
+	for _, a := range args {
+		if a.Kind() != a.IncompleteKind() {
+			isUnion = false
+		}
+	}
+
+	return hasPred && isUnion
 }
 
 // Generate a typeref for a value that refers to a field
@@ -704,28 +736,32 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 		panic("unreachable")
 	case 1:
 	case 2:
-		// The only case we actually want to support, at least for now, is this:
-		//
-		//   enum: "foo" | "bar" @cuetsy(kind="enum")
-		//   enumref: enum & "foo" @cuetsy(kind="type")
-		//
-		// Where we render enumref to TS as `Enumref: Enum.Foo`.
-		// For that case, we allow at most two conjuncts, and make sure they
-		// fit the pattern of the two operands above.
-		aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
-		aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
-		var cr cue.Value
-		if aref {
-			cr, lit = conjuncts[0], &(conjuncts[1])
-		} else {
-			cr, lit = conjuncts[1], &(conjuncts[0])
+		var err error
+		conjuncts[1] = getDefaultEnumValue(conjuncts[1])
+		lit, err = getEnumLiteral(conjuncts)
+		if err != nil {
+			ve := valError(v, err.Error())
+			g.addErr(ve)
+			return nil, ve
 		}
-		if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
-			ve := valError(v, "may only unify a referenced enum with a concrete literal member of that enum")
+	case 3:
+		if conjuncts[1].IncompleteKind() == cue.TopKind {
+			conjuncts[1] = conjuncts[0]
+		}
+
+		if !conjuncts[0].Equals(conjuncts[1]) && conjuncts[0].Subsume(conjuncts[1]) != nil {
+			ve := valError(v, "complex unifications containing references to enums without overriding parent are not currently supported")
 			g.addErr(ve)
 			return nil, ve
 		}
 
+		var err error
+		lit, err = getEnumLiteral(conjuncts[1:])
+		if err != nil {
+			ve := valError(v, err.Error())
+			g.addErr(ve)
+			return nil, ve
+		}
 	default:
 		ve := valError(v, "complex unifications containing references to enums are not currently supported")
 		g.addErr(ve)
@@ -770,18 +806,75 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 				return nil, err
 			}
 		}
-	case 2:
-		if typeIdent, err := findIdent(ev, *lit); err == nil {
-			ref.T = tsast.SelectorExpr{
-				Expr: ref.T,
-				Sel:  *typeIdent,
-			}
+	case 2, 3:
+		var rr tsast.Expr
+		if defaultIdent, err := findIdent(ev, *lit); err == nil {
+			rr = tsast.SelectorExpr{Expr: ref.T, Sel: *defaultIdent}
 		} else {
 			return nil, err
+		}
+
+		op, args := v.Expr()
+		hasInnerDefault := false
+		if len(args) == 2 && op == cue.AndOp {
+			_, hasInnerDefault = args[1].Default()
+		}
+
+		if _, has := v.Default(); has || hasInnerDefault {
+			ref.D = rr
+		} else {
+			ref.T = rr
 		}
 	}
 
 	return ref, nil
+}
+
+func getEnumLiteral(conjuncts []cue.Value) (*cue.Value, error) {
+	var lit *cue.Value
+	// The only case we actually want to support, at least for now, is this:
+	//
+	//   enum: "foo" | "bar" @cuetsy(kind="enum")
+	//   enumref: enum & "foo" @cuetsy(kind="type")
+	//
+	// Where we render enumref to TS as `Enumref: Enum.Foo`.
+	// For that case, we allow at most two conjuncts, and make sure they
+	// fit the pattern of the two operands above.
+	aref, bref := isReference(conjuncts[0]), isReference(conjuncts[1])
+	aconc, bconc := conjuncts[0].IsConcrete(), conjuncts[1].IsConcrete()
+	var cr cue.Value
+	if aref {
+		cr, lit = conjuncts[0], &(conjuncts[1])
+	} else {
+		cr, lit = conjuncts[1], &(conjuncts[0])
+	}
+
+	if aref == bref || aconc == bconc || cr.Subsume(*lit) != nil {
+		return nil, errors.New(fmt.Sprintf("may only unify a referenced enum with a concrete literal member of that enum. Path: %s", conjuncts[0].Path()))
+	}
+
+	return lit, nil
+}
+
+// getDefaultEnumValue is looking for default values like #Enum & (*"default" | _) struct
+func getDefaultEnumValue(v cue.Value) cue.Value {
+	if v.IncompleteKind() != cue.TopKind {
+		return v
+	}
+
+	op, args := v.Expr()
+	if op != cue.OrOp {
+		return v
+	}
+
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			if def, has := a.Default(); has {
+				return def
+			}
+		}
+	}
+	return v
 }
 
 // typeRef is a pair of expressions for referring to another type - the reference
@@ -855,7 +948,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	if containsCuetsyReference(v) {
+	if containsCuetsyReference(v, TypeAlias, TypeInterface) || hasEnumReference(v) {
 		ref, err := referenceValueAs(v)
 		if err != nil {
 			return nil, err
@@ -996,6 +1089,10 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 			v = dvals[0]
 		}
 
+		if op == cue.OrOp {
+			return disj(dvals)
+		}
+
 		e := v.LookupPath(cue.MakePath(cue.AnyIndex))
 		if e.Exists() {
 			expr, err := tsprintField(e, isType)
@@ -1036,6 +1133,9 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 		// with disjunctions and basic types.
 		switch op {
 		case cue.OrOp:
+			if len(dvals) == 2 && dvals[0].Kind() == cue.NullKind {
+				return tsprintField(dvals[1], isType)
+			}
 			return disj(dvals)
 		case cue.NoOp, cue.AndOp:
 			// There's no op for simple unification; it's a basic type, and can

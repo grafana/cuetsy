@@ -249,6 +249,12 @@ outer:
 			a = appendSplit(a, splitBy, v)
 		}
 	}
+
+	if defaultValue, is := v.Default(); is {
+		if o, _ := v.Expr(); o == cue.NoOp {
+			a = append(a, defaultValue)
+		}
+	}
 	return a
 }
 
