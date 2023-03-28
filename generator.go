@@ -1174,9 +1174,16 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 				return tsprintField(dvals[1], isType)
 			}
 			return disj(dvals)
-		case cue.NoOp, cue.AndOp:
-			// There's no op for simple unification; it's a basic type, and can
-			// be trivially rendered.
+		case cue.AndOp:
+		// There's no op for simple unification; it's a basic type, and can
+		// be trivially rendered.
+		case cue.NoOp:
+			// Something a list of two items like #Enum & "default" struct reaches this point.
+			// The problem is that "default" is not detected as value, only by default, and we need
+			// to add this value manually.
+			if args := getValuesWithDefaults(v, dvals[0]); args != nil {
+				return disj(args)
+			}
 		default:
 			panic("unreachable...?")
 		}
@@ -1196,6 +1203,17 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	}
 
 	return nil, valError(v, "unrecognized kind %v", ik)
+}
+
+func getValuesWithDefaults(v cue.Value, cuetsyType cue.Value) []cue.Value {
+	if def, ok := v.Default(); ok {
+		op, _ := cuetsyType.Expr()
+		if op == cue.SelectorOp {
+			return []cue.Value{cuetsyType, def}
+		}
+	}
+
+	return nil
 }
 
 // ONLY call this function if it has been established that the provided Value is
