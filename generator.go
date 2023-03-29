@@ -707,6 +707,24 @@ func hasEnumReference(v cue.Value) bool {
 	return hasPred && isUnion
 }
 
+func hasTypeReference(v cue.Value) bool {
+	hasTypeRef := containsCuetsyReference(v, TypeAlias)
+	// Check if it setting an enum value [Enum & "value"]
+	op, args := v.Expr()
+	if op == cue.AndOp || op == cue.SelectorOp {
+		return hasTypeRef
+	}
+
+	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			return hasTypeRef
+		}
+	}
+
+	return false
+}
+
 // Generate a typeref for a value that refers to a field
 func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	var lit *cue.Value
@@ -948,7 +966,7 @@ func tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	if containsCuetsyReference(v, TypeAlias, TypeInterface) || hasEnumReference(v) {
+	if hasTypeReference(v) || containsCuetsyReference(v, TypeInterface) || hasEnumReference(v) {
 		ref, err := referenceValueAs(v)
 		if err != nil {
 			return nil, err

@@ -29,8 +29,8 @@ export interface Base {
 
 export interface StructWithDefaults extends Base {
   baseType: Type;
-  defaultNumber: Type;
-  defaultString: Type;
+  defaultNumber: (Type | 'something' | 34);
+  defaultString: (Type | 'invalid');
   defaultType: Type;
   noOverrideDefaultType: Type;
   noOverrideType: Type;
