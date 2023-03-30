@@ -79,8 +79,8 @@ export interface Compose {
   localstr: LocalEnum;
   localstrd: LocalEnumD;
   localstrover: LocalEnumD;
-  union: dep.DepEnumNumericD;
-  unionStrings: LocalEnum;
+  union: (dep.DepEnumNumericD.Three | dep.DepEnumNumericD.Two);
+  unionStrings: (LocalEnum.Bar | LocalEnum.Baz | LocalEnum.Foo);
 }
 
 export const defaultCompose: Partial<Compose> = {
