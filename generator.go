@@ -1308,7 +1308,7 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 func refAsInterface(v cue.Value) (ts.Expr, error) {
 	// Bail out right away if the value isn't a reference
 	op, dvals := v.Expr()
-	if !isReference(v) || op != cue.SelectorOp {
+	if !isReference(v) && op != cue.SelectorOp {
 		return nil, fmt.Errorf("not a reference")
 	}
 
