@@ -1226,7 +1226,13 @@ func (g generator) tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 			return nil, valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
 		}
 		fallthrough
-	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind, cue.StructKind:
+	case cue.NullKind:
+		// It evaluates single null value
+		if op == cue.NoOp && len(dvals) == 0 {
+			return tsprintType(cue.NullKind), nil
+		}
+		fallthrough
+	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.StructKind:
 		// Having eliminated the possibility of bounds/constraints, we're left
 		// with disjunctions and basic types.
 		switch op {
@@ -1292,6 +1298,8 @@ func tsprintType(k cue.Kind) ts.Expr {
 		return ts.Ident("number")
 	case cue.TopKind:
 		return ts.Ident("unknown")
+	case cue.NullKind:
+		return ts.Ident("null")
 	default:
 		return nil
 	}
