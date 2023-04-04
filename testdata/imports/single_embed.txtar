@@ -37,8 +37,9 @@ export interface Attrib {
   ImportedInner: {
     nestedval: string;
   };
-  importedNoAttribField: string;
+  importedAttribField: string;
 }
 
 export interface Wrapped extends Attrib {}
-export interface dep.Wrapped extends dep.Attrib {}
+
+export interface DepWrapped extends dep.Attrib {}
