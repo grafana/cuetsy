@@ -54,9 +54,20 @@ func (o ObjectLit) innerString(aeol EOL, lvl int) string {
 
 	write("{\n")
 	for _, e := range o.Elems {
+		hasInlineComments := false
+		for _, c := range e.Comments() {
+			if c.Pos == CommentInline {
+				hasInlineComments = true
+			}
+		}
 		indent(lvl)
 		write(formatInner(aeol, lvl, e))
-		write(eol)
+		if hasInlineComments {
+			write("\n")
+		} else {
+			write(eol)
+		}
+
 	}
 
 	indent(lvl - 1)
@@ -97,7 +108,11 @@ func formatInner(eol EOL, lvl int, n Node) string {
 	b.WriteString(prinner(eol, lvl, n))
 
 	for ; i < len(comms) && comms[i].Pos == CommentInline; i++ {
-		b.WriteString(" " + comms[i].innerString(eol, lvl) + " ")
+		if _, ok := n.(KeyValueExpr); ok {
+			b.WriteString("; " + comms[i].innerString(eol, lvl))
+		} else {
+			b.WriteString(" " + comms[i].innerString(eol, lvl))
+		}
 	}
 
 	for ; i < len(comms); i++ {

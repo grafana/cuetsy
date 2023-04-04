@@ -147,14 +147,12 @@ func CommentFromCUEGroup(cg *cast.CommentGroup, jsdoc bool) ast.Comment {
 	}
 
 	prefix := func() { b.WriteString("// ") }
-	if jsdoc {
-		b.WriteString("/**")
-		if cg.Line {
-			prefix = func() { b.WriteString(" ") }
-		} else {
-			b.WriteString("\n")
-			prefix = func() { b.WriteString(" * ") }
-		}
+	if jsdoc && cg.Doc && !cg.Line {
+		b.WriteString("/**\n")
+		prefix = func() { b.WriteString(" * ") }
+	} else if jsdoc && !cg.Doc && cg.Line {
+		b.WriteString("//")
+		prefix = func() { b.WriteString(" ") }
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(cg.Text()))
@@ -167,10 +165,8 @@ func CommentFromCUEGroup(cg *cast.CommentGroup, jsdoc bool) ast.Comment {
 		b.WriteString(scanner.Text())
 		i++
 	}
-	if jsdoc {
-		if !cg.Line {
-			b.WriteString("\n")
-		}
+	if jsdoc && cg.Doc {
+		b.WriteString("\n")
 		b.WriteString(" */")
 	}
 

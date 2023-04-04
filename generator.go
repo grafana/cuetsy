@@ -277,7 +277,6 @@ type KV struct {
 //     if memberNames is absent, then keys implicitly generated as CamelCase
 //   - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
-	vdoc := v.Doc()
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -302,7 +301,7 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 	ret[0] = tsast.TypeDecl{
 		Name:        ts.Ident(name),
 		Type:        tsast.EnumType{Elems: exprs},
-		CommentList: commentsForGroup(vdoc, true),
+		CommentList: commentsFor(v, true),
 		Export:      g.c.Export,
 	}
 
@@ -469,7 +468,6 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	}
 	var elems []tsast.KeyValueExpr
 	var defs []tsast.KeyValueExpr
-
 	iter, _ := v.Fields(cue.Optional(true))
 	for iter != nil && iter.Next() {
 		if iter.Selector().PkgPath() != "" {
@@ -1444,14 +1442,20 @@ func commentsForGroup(cgs []*ast.CommentGroup, jsdoc bool) []tsast.Comment {
 	}
 	ret := make([]tsast.Comment, 0, len(cgs))
 	for _, cg := range cgs {
-		if cg.Line {
-			panic("hit it")
-		}
 		ret = append(ret, ts.CommentFromCUEGroup(cg, jsdoc))
 	}
 	return ret
 }
 
 func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
-	return commentsForGroup(v.Doc(), jsdoc)
+	docs := v.Doc()
+	if s, ok := v.Source().(*ast.Field); ok {
+		for _, c := range s.Comments() {
+			if !c.Doc && c.Line {
+				docs = append(docs, c)
+			}
+		}
+	}
+
+	return commentsForGroup(docs, jsdoc)
 }
