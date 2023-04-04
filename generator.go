@@ -1431,17 +1431,6 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 	return nil, nil
 }
 
-func commentsForGroup(cgs []*ast.CommentGroup, jsdoc bool) []tsast.Comment {
-	if cgs == nil {
-		return nil
-	}
-	ret := make([]tsast.Comment, 0, len(cgs))
-	for _, cg := range cgs {
-		ret = append(ret, ts.CommentFromCUEGroup(cg, jsdoc))
-	}
-	return ret
-}
-
 func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
 	docs := v.Doc()
 	if s, ok := v.Source().(*ast.Field); ok {
@@ -1452,5 +1441,13 @@ func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
 		}
 	}
 
-	return commentsForGroup(docs, jsdoc)
+	ret := make([]tsast.Comment, 0, len(docs))
+	for _, cg := range docs {
+		ret = append(ret, ts.CommentFromCUEGroup(ts.Comment{
+			Text:      cg.Text(),
+			Multiline: cg.Doc && !cg.Line,
+			JSDoc:     jsdoc,
+		}))
+	}
+	return ret
 }
