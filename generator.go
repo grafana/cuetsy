@@ -468,6 +468,7 @@ func (g *generator) genInterface(name string, v cue.Value) []ts.Decl {
 	}
 	var elems []tsast.KeyValueExpr
 	var defs []tsast.KeyValueExpr
+
 	iter, _ := v.Fields(cue.Optional(true))
 	for iter != nil && iter.Next() {
 		if iter.Selector().PkgPath() != "" {
