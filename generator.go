@@ -657,52 +657,14 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 
 	tref := &typeRef{}
 	var err error
-	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
-	if !containsCuetsyReference(v) {
-		tref.T, err = g.tsprintField(v, true)
-		if err != nil {
+	tref.T, err = g.tsprintField(v, true)
+	if err != nil {
+		if !containsCuetsyReference(v) {
 			g.addErr(valError(v, "could not generate field: %w", err))
 			return nil, err
 		}
-	} else {
-		expr, err := g.tsprintField(v, true)
-		if err != nil {
-			g.addErr(err)
-			return nil, nil
-		}
-		tref.T = expr
-
-		// Deconstruct the field's expressions.
-		// conjuncts := appendSplit(nil, cue.AndOp, v)
-
-		// var expr ts.Expr
-		//
-		// for _, cv := range conjuncts {
-		// 	disjuncts := appendSplit(nil, cue.OrOp, cv)
-		// 	for i, dv := range disjuncts {
-		// 		if _, r := dv.Reference(); len(r) == 0 {
-		// 			disjuncts[i] = dv.Eval()
-		// 		}
-		// 	}
-		// 	switch len(disjuncts) {
-		// 	case 0:
-		// 		// conjunct eliminated - need more preprocessing to actually make this possible
-		// 		panic("TODO, unreachable")
-		// 	case 1:
-		// 		err := disjuncts[0].Err()
-		// 		if err != nil {
-		// 			g.addErr(valError(v, "invalid value"))
-		// 			return nil
-		// 		}
-		// 		expr, err = g.tsprintField(disjuncts[0])
-		// 		if err != nil {
-		// 			g.addErr(valError(v, "invalid value"))
-		// 			return nil
-		// 		}
-		// 	default:
-		// 		// TODO create disjunction handler
-		// 	}
-		// }
+		g.addErr(err)
+		return nil, nil
 	}
 
 	exists, defExpr, err := g.tsPrintDefault(v)
@@ -743,6 +705,24 @@ func hasEnumReference(v cue.Value) bool {
 	}
 
 	return hasPred && isUnion
+}
+
+func hasTypeReference(v cue.Value) bool {
+	hasTypeRef := containsCuetsyReference(v, TypeAlias)
+	// Check if it setting an enum value [Enum & "value"]
+	op, args := v.Expr()
+	if op == cue.AndOp || op == cue.SelectorOp {
+		return hasTypeRef
+	}
+
+	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			return hasTypeRef
+		}
+	}
+
+	return false
 }
 
 // Generate a typeref for a value that refers to a field
@@ -1030,6 +1010,7 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 
 		return true, expr, nil
 	}
+
 	return false, nil, nil
 }
 
@@ -1047,7 +1028,7 @@ func (g generator) tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	if containsCuetsyReference(v, TypeAlias, TypeInterface) {
+	if hasTypeReference(v) || containsCuetsyReference(v, TypeInterface) || hasEnumReference(v) {
 		ref, err := referenceValueAs(v)
 		if err != nil {
 			return nil, err
@@ -1360,7 +1341,7 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 // attribute. The variadic parameter determines which kinds will be treated as
 // permissible. By default, all kinds are permitted.
 //
-// An nil expr indicates a reference is not allowable, including the case
+// A nil expr indicates a reference is not allowable, including the case
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
 func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
@@ -1430,6 +1411,12 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 				Expr: ts.Ident(str.String()),
 				Sel:  ts.Ident(dstr),
 			}, nil
+		}
+
+		// It happens when we are overriding a Type parent with a default value. Because `hasOverrides` is true,
+		// dstr is the default value, and we need to set the Type name here
+		if str, ok := dvals[0].Source().(fmt.Stringer); ok {
+			return ts.Ident(str.String()), nil
 		}
 	default:
 		return nil, valError(v, "unknown selector subject type %T, cannot translate path %s", dvals[0].Source(), v.Path().String())
