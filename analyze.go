@@ -35,7 +35,6 @@ func getKindFor(v cue.Value) (TSType, error) {
 
 	if !found {
 		if t, ok := getKindForField(v); ok {
-			fmt.Println(t)
 			return t, nil
 		}
 		return "", valError(v, "value has no \"@%s\" attribute", attrname)
