@@ -44,8 +44,7 @@ func TestGenerateWithImports(t *testing.T) {
 		Name:   "gen",
 		Update: *updateGolden,
 		ToDo: map[string]string{
-			"imports/oneref_verbose":  "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
-			"imports/inline_comments": "Inline comments do not appear be retrievable from cue.Value.Doc()",
+			"imports/oneref_verbose": "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
 		},
 	}
 

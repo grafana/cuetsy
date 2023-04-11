@@ -277,7 +277,6 @@ type KV struct {
 //     if memberNames is absent, then keys implicitly generated as CamelCase
 //   - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
-	vdoc := v.Doc()
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -302,7 +301,7 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 	ret[0] = tsast.TypeDecl{
 		Name:        ts.Ident(name),
 		Type:        tsast.EnumType{Elems: exprs},
-		CommentList: commentsForGroup(vdoc, true),
+		CommentList: commentsFor(v, true),
 		Export:      g.c.Export,
 	}
 
@@ -683,39 +682,47 @@ func hasEnumReference(v cue.Value) bool {
 		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
 	)
 
-	// Check if it setting an enum value [Enum & "value"]
+	// Check if it's setting an enum value [Enum & "value"]
 	op, args := v.Expr()
 	if op == cue.AndOp {
 		return hasPred
 	}
 
-	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	// Check if it has default value [Enum & (*"defaultValue" | _)]
 	for _, a := range args {
 		if a.IncompleteKind() == cue.TopKind {
 			return hasPred
 		}
 	}
 
-	// Check if it is a union [(Enum & "a") | (Enum & "b")]
 	isUnion := true
+	allEnums := true
 	for _, a := range args {
+		// Check if it is a union [(Enum & "a") | (Enum & "b")]
 		if a.Kind() != a.IncompleteKind() {
 			isUnion = false
 		}
+		// Check if all elements are enums
+		_, exprs := a.Expr()
+		for _, e := range exprs {
+			if t, err := getKindFor(cue.Dereference(e)); err == nil && t != TypeEnum {
+				allEnums = false
+			}
+		}
 	}
 
-	return hasPred && isUnion
+	return hasPred && isUnion && allEnums
 }
 
 func hasTypeReference(v cue.Value) bool {
 	hasTypeRef := containsCuetsyReference(v, TypeAlias)
-	// Check if it setting an enum value [Enum & "value"]
+	// Check if it's setting an enum value [Type & "value"]
 	op, args := v.Expr()
 	if op == cue.AndOp || op == cue.SelectorOp {
 		return hasTypeRef
 	}
 
-	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	// Check if it has default value [Type & (*"defaultValue" | _)]
 	for _, a := range args {
 		if a.IncompleteKind() == cue.TopKind {
 			return hasTypeRef
@@ -995,7 +1002,7 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 			return false, nil, err
 		}
 
-		if isReference(d) {
+		if isReference(d) && (hasEnumReference(v) || hasTypeReference(v)) {
 			switch t := expr.(type) {
 			case tsast.SelectorExpr:
 				t.Sel.Name = "default" + t.Sel.Name
@@ -1433,20 +1440,23 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 	return nil, nil
 }
 
-func commentsForGroup(cgs []*ast.CommentGroup, jsdoc bool) []tsast.Comment {
-	if cgs == nil {
-		return nil
-	}
-	ret := make([]tsast.Comment, 0, len(cgs))
-	for _, cg := range cgs {
-		if cg.Line {
-			panic("hit it")
+func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
+	docs := v.Doc()
+	if s, ok := v.Source().(*ast.Field); ok {
+		for _, c := range s.Comments() {
+			if !c.Doc && c.Line {
+				docs = append(docs, c)
+			}
 		}
-		ret = append(ret, ts.CommentFromCUEGroup(cg, jsdoc))
+	}
+
+	ret := make([]tsast.Comment, 0, len(docs))
+	for _, cg := range docs {
+		ret = append(ret, ts.CommentFromCUEGroup(ts.Comment{
+			Text:      cg.Text(),
+			Multiline: cg.Doc && !cg.Line,
+			JSDoc:     jsdoc,
+		}))
 	}
 	return ret
-}
-
-func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
-	return commentsForGroup(v.Doc(), jsdoc)
 }
