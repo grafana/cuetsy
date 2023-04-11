@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 )
 
@@ -31,7 +32,11 @@ func getKindFor(v cue.Value) (TSType, error) {
 			attr = a
 		}
 	}
+
 	if !found {
+		if t, ok := getKindForField(v); ok {
+			return t, nil
+		}
 		return "", valError(v, "value has no \"@%s\" attribute", attrname)
 	}
 
@@ -44,6 +49,42 @@ func getKindFor(v cue.Value) (TSType, error) {
 		return "", valError(v, "no value for the %q key in @%s attribute", attrKind, attrname)
 	}
 	return TSType(tt), nil
+}
+
+func getKindForField(v cue.Value) (TSType, bool) {
+	if field, ok := v.Source().(*ast.Field); ok {
+		if s, ok := field.Value.(*ast.StructLit); ok {
+			return iterateField(s)
+		}
+	}
+	return "", false
+}
+
+func iterateField(s *ast.StructLit) (TSType, bool) {
+	for _, el := range s.Elts {
+		if field, ok := el.(*ast.Field); ok {
+			if len(field.Attrs) > 0 {
+				return parseStringAttribute(field.Attrs[0].Text), true
+			}
+			if s, ok := field.Value.(*ast.StructLit); ok {
+				return iterateField(s)
+			}
+		}
+	}
+	return "", false
+}
+
+func parseStringAttribute(attr string) TSType {
+	switch attr {
+	case "@cuetsy(kind=\"interface\")":
+		return TypeInterface
+	case "@cuetsy(kind=\"enum\")":
+		return TypeEnum
+	case "@cuetsy(kind=\"type\")":
+		return TypeAlias
+	default:
+		return ""
+	}
 }
 
 func targetsKind(v cue.Value, kinds ...TSType) bool {
