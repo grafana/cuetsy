@@ -683,39 +683,47 @@ func hasEnumReference(v cue.Value) bool {
 		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
 	)
 
-	// Check if it setting an enum value [Enum & "value"]
+	// Check if it's setting an enum value [Enum & "value"]
 	op, args := v.Expr()
 	if op == cue.AndOp {
 		return hasPred
 	}
 
-	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	// Check if it has default value [Enum & (*"defaultValue" | _)]
 	for _, a := range args {
 		if a.IncompleteKind() == cue.TopKind {
 			return hasPred
 		}
 	}
 
-	// Check if it is a union [(Enum & "a") | (Enum & "b")]
 	isUnion := true
+	allEnums := true
 	for _, a := range args {
+		// Check if it is a union [(Enum & "a") | (Enum & "b")]
 		if a.Kind() != a.IncompleteKind() {
 			isUnion = false
 		}
+		// Check if all elements are enums
+		_, exprs := a.Expr()
+		for _, e := range exprs {
+			if t, err := getKindFor(cue.Dereference(e)); err == nil && t != TypeEnum {
+				allEnums = false
+			}
+		}
 	}
 
-	return hasPred && isUnion
+	return hasPred && isUnion && allEnums
 }
 
 func hasTypeReference(v cue.Value) bool {
 	hasTypeRef := containsCuetsyReference(v, TypeAlias)
-	// Check if it setting an enum value [Enum & "value"]
+	// Check if it's setting an enum value [Type & "value"]
 	op, args := v.Expr()
 	if op == cue.AndOp || op == cue.SelectorOp {
 		return hasTypeRef
 	}
 
-	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	// Check if it has default value [Type & (*"defaultValue" | _)]
 	for _, a := range args {
 		if a.IncompleteKind() == cue.TopKind {
 			return hasTypeRef
@@ -995,7 +1003,7 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 			return false, nil, err
 		}
 
-		if isReference(d) {
+		if isReference(d) && (hasEnumReference(v) || hasTypeReference(v)) {
 			switch t := expr.(type) {
 			case tsast.SelectorExpr:
 				t.Sel.Name = "default" + t.Sel.Name
