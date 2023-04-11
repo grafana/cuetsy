@@ -42,12 +42,12 @@ func doit(conf NewConfig, inst *cue.Instance) (result []tsast.Decl, err error) {
 	panic("TODO")
 }
 
-func (c *buildContext) build(name string, v cue.Value) *tsoutput {
+func (b *buildContext) build(name string, v cue.Value) *tsoutput {
 	// TODO should we let errors escape here? Maybe only unsupported-type ones?
-	return newTypeBuilder(c).enterGen(nil, name, v)
+	return newTypeBuilder(b).enterGen(nil, name, v)
 }
 
-func (c *buildContext) makeRef(inst *cue.Instance, ref []string) string {
+func (b *buildContext) makeRef(inst *cue.Instance, ref []string) string {
 	ref = append([]string{}, ref...)
 
 	// NOTE this is where oapi does things with its NameFunc
