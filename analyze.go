@@ -87,31 +87,6 @@ func parseStringAttribute(attr string) TSType {
 	}
 }
 
-func getForceText(v cue.Value) string {
-	var found bool
-	var attr cue.Attribute
-	for _, a := range v.Attributes(cue.ValueAttr) {
-		if a.Name() == attrname {
-			found = true
-			attr = a
-		}
-	}
-	if !found {
-		return ""
-	}
-
-	ft, found, err := attr.Lookup(0, attrForceText)
-	if err != nil || !found {
-		return ""
-	}
-
-	return ft
-}
-
-func targetsAnyKind(v cue.Value) bool {
-	return targetsKind(v)
-}
-
 func targetsKind(v cue.Value, kinds ...TSType) bool {
 	vkind, err := getKindFor(v)
 	if err != nil {
@@ -123,23 +98,6 @@ func targetsKind(v cue.Value, kinds ...TSType) bool {
 	}
 	for _, knd := range kinds {
 		if vkind == knd {
-			return true
-		}
-	}
-	return false
-}
-
-// containsReference recursively flattens expressions within a Value to find all
-// its constituent Values, and checks if any of those Values are references.
-//
-// It does NOT walk struct fields - only expression structures, as returned from Expr().
-// Remember that Expr() _always_ drops values in default branches.
-func containsReference(v cue.Value) bool {
-	if isReference(v) {
-		return true
-	}
-	for _, dv := range flatten(v) {
-		if isReference(dv) {
 			return true
 		}
 	}
@@ -339,19 +297,19 @@ type listField struct {
 	props    listProps
 }
 
-func (li *listField) eq(oli *listField) bool {
-	if li.props.isOpen == oli.props.isOpen && li.props.divergentTypes == oli.props.divergentTypes && li.lenElems == oli.lenElems {
-		if !li.props.isOpen {
-			if li.lenElems == 0 {
+func (l *listField) eq(oli *listField) bool {
+	if l.props.isOpen == oli.props.isOpen && l.props.divergentTypes == oli.props.divergentTypes && l.lenElems == oli.lenElems {
+		if !l.props.isOpen {
+			if l.lenElems == 0 {
 				return true
 			}
 			p := cue.MakePath(cue.Index(0))
 			// Sloppy, but enough to cover all but really complicated cases that
 			// are likely unsupportable anyway
-			return li.v.LookupPath(p).Equals(oli.v.LookupPath(p))
+			return l.v.LookupPath(p).Equals(oli.v.LookupPath(p))
 		}
 
-		return li.anyType.Subsume(oli.anyType, cue.Raw(), cue.Schema()) == nil && oli.anyType.Subsume(li.anyType, cue.Raw(), cue.Schema()) == nil
+		return l.anyType.Subsume(oli.anyType, cue.Raw(), cue.Schema()) == nil && oli.anyType.Subsume(l.anyType, cue.Raw(), cue.Schema()) == nil
 	}
 
 	return false

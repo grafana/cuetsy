@@ -1,12 +1,10 @@
 package cuetsy
 
 import (
-	"bytes"
 	"fmt"
 	"math/bits"
 	"sort"
 	"strings"
-	"text/template"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -17,10 +15,8 @@ import (
 
 const (
 	attrname        = "cuetsy"
-	attrEnumDefault = "enumDefault"
 	attrEnumMembers = "memberNames"
 	attrKind        = "kind"
-	attrForceText   = "forceText"
 )
 
 // TSType strings indicate the kind of TypeScript declaration to which a CUE
@@ -175,15 +171,6 @@ func (g *generator) addErr(err error) {
 	if err != nil {
 		g.err = errors.Append(g.err, errors.Promote(err, "generate failed"))
 	}
-}
-
-func execGetString(t *template.Template, data interface{}) (string, error) {
-	var tpl bytes.Buffer
-	if err := t.Execute(&tpl, data); err != nil {
-		return "", err
-	}
-	result := tpl.String()
-	return result, nil
 }
 
 func (g *generator) decl(name string, v cue.Value) []ts.Decl {
@@ -1024,11 +1011,6 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 // Render a string containing a Typescript semantic equivalent to the provided
 // Value for placement in a single field, if possible.
 func (g generator) tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
-	// Let the forceText attribute supersede everything.
-	if ft := getForceText(v); ft != "" {
-		return ts.Raw(ft), nil
-	}
-
 	if hasEnumReference(v) {
 		ref, err := g.genEnumReference(v)
 		return ref.T, err
@@ -1325,12 +1307,10 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.SelectorExpr:
-		// panic("case 2")
 		if targetsKind(deref, TypeInterface) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.Ident:
-		// panic("case 3")
 		if targetsKind(deref, TypeInterface) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
@@ -1410,12 +1390,10 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.SelectorExpr:
-		// panic("case 2")
 		if targetsKind(deref, kinds...) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.Ident:
-		// panic("case 3")
 		if targetsKind(deref, kinds...) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
