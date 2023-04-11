@@ -46,16 +46,6 @@ func Union(elems ...Expr) Expr {
 	return ast.ParenExpr{Expr: U}
 }
 
-func Raw(data string) ast.Raw {
-	// pc, file, no, ok := runtime.Caller(1)
-	// details := runtime.FuncForPC(pc)
-	// if ok && details != nil {
-	// 	fmt.Printf("fix: ts.Raw used by %s at %s#%d\n", details.Name(), file, no)
-	// }
-
-	return ast.Raw{Data: data}
-}
-
 func Object(fields map[string]Expr) Expr {
 	elems := make([]ast.KeyValueExpr, 0, len(fields))
 	for k, v := range fields {
