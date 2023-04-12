@@ -1,12 +1,10 @@
 package cuetsy
 
 import (
-	"bytes"
 	"fmt"
 	"math/bits"
 	"sort"
 	"strings"
-	"text/template"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -17,10 +15,8 @@ import (
 
 const (
 	attrname        = "cuetsy"
-	attrEnumDefault = "enumDefault"
 	attrEnumMembers = "memberNames"
 	attrKind        = "kind"
-	attrForceText   = "forceText"
 )
 
 // TSType strings indicate the kind of TypeScript declaration to which a CUE
@@ -177,15 +173,6 @@ func (g *generator) addErr(err error) {
 	}
 }
 
-func execGetString(t *template.Template, data interface{}) (string, error) {
-	var tpl bytes.Buffer
-	if err := t.Execute(&tpl, data); err != nil {
-		return "", err
-	}
-	result := tpl.String()
-	return result, nil
-}
-
 func (g *generator) decl(name string, v cue.Value) []ts.Decl {
 	tst, err := getKindFor(v)
 	if err != nil {
@@ -277,7 +264,6 @@ type KV struct {
 //     if memberNames is absent, then keys implicitly generated as CamelCase
 //   - string struct: struct keys get enum keys, struct values enum values
 func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
-	vdoc := v.Doc()
 	// FIXME compensate for attribute-applying call to Unify() on incoming Value
 	op, dvals := v.Expr()
 	if op == cue.AndOp {
@@ -302,7 +288,7 @@ func (g *generator) genEnum(name string, v cue.Value) []ts.Decl {
 	ret[0] = tsast.TypeDecl{
 		Name:        ts.Ident(name),
 		Type:        tsast.EnumType{Elems: exprs},
-		CommentList: commentsForGroup(vdoc, true),
+		CommentList: commentsFor(v, true),
 		Export:      g.c.Export,
 	}
 
@@ -657,52 +643,14 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 
 	tref := &typeRef{}
 	var err error
-	// One path for when there's a ref to a cuetsy node, and a separate one otherwise
-	if !containsCuetsyReference(v) {
-		tref.T, err = g.tsprintField(v, true)
-		if err != nil {
+	tref.T, err = g.tsprintField(v, true)
+	if err != nil {
+		if !containsCuetsyReference(v) {
 			g.addErr(valError(v, "could not generate field: %w", err))
 			return nil, err
 		}
-	} else {
-		expr, err := g.tsprintField(v, true)
-		if err != nil {
-			g.addErr(err)
-			return nil, nil
-		}
-		tref.T = expr
-
-		// Deconstruct the field's expressions.
-		// conjuncts := appendSplit(nil, cue.AndOp, v)
-
-		// var expr ts.Expr
-		//
-		// for _, cv := range conjuncts {
-		// 	disjuncts := appendSplit(nil, cue.OrOp, cv)
-		// 	for i, dv := range disjuncts {
-		// 		if _, r := dv.Reference(); len(r) == 0 {
-		// 			disjuncts[i] = dv.Eval()
-		// 		}
-		// 	}
-		// 	switch len(disjuncts) {
-		// 	case 0:
-		// 		// conjunct eliminated - need more preprocessing to actually make this possible
-		// 		panic("TODO, unreachable")
-		// 	case 1:
-		// 		err := disjuncts[0].Err()
-		// 		if err != nil {
-		// 			g.addErr(valError(v, "invalid value"))
-		// 			return nil
-		// 		}
-		// 		expr, err = g.tsprintField(disjuncts[0])
-		// 		if err != nil {
-		// 			g.addErr(valError(v, "invalid value"))
-		// 			return nil
-		// 		}
-		// 	default:
-		// 		// TODO create disjunction handler
-		// 	}
-		// }
+		g.addErr(err)
+		return nil, nil
 	}
 
 	exists, defExpr, err := g.tsPrintDefault(v)
@@ -721,28 +669,54 @@ func hasEnumReference(v cue.Value) bool {
 		func(v cue.Value) bool { return targetsKind(cue.Dereference(v), TypeEnum) },
 	)
 
-	// Check if it setting an enum value [Enum & "value"]
+	// Check if it's setting an enum value [Enum & "value"]
 	op, args := v.Expr()
 	if op == cue.AndOp {
 		return hasPred
 	}
 
-	// Check if it has default value [Enum & (*"defaultValuee" | _)]
+	// Check if it has default value [Enum & (*"defaultValue" | _)]
 	for _, a := range args {
 		if a.IncompleteKind() == cue.TopKind {
 			return hasPred
 		}
 	}
 
-	// Check if it is a union [(Enum & "a") | (Enum & "b")]
 	isUnion := true
+	allEnums := true
 	for _, a := range args {
+		// Check if it is a union [(Enum & "a") | (Enum & "b")]
 		if a.Kind() != a.IncompleteKind() {
 			isUnion = false
 		}
+		// Check if all elements are enums
+		_, exprs := a.Expr()
+		for _, e := range exprs {
+			if t, err := getKindFor(cue.Dereference(e)); err == nil && t != TypeEnum {
+				allEnums = false
+			}
+		}
 	}
 
-	return hasPred && isUnion
+	return hasPred && isUnion && allEnums
+}
+
+func hasTypeReference(v cue.Value) bool {
+	hasTypeRef := containsCuetsyReference(v, TypeAlias)
+	// Check if it's setting an enum value [Type & "value"]
+	op, args := v.Expr()
+	if op == cue.AndOp || op == cue.SelectorOp {
+		return hasTypeRef
+	}
+
+	// Check if it has default value [Type & (*"defaultValue" | _)]
+	for _, a := range args {
+		if a.IncompleteKind() == cue.TopKind {
+			return hasTypeRef
+		}
+	}
+
+	return false
 }
 
 // Generate a typeref for a value that refers to a field
@@ -1015,7 +989,7 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 			return false, nil, err
 		}
 
-		if isReference(d) {
+		if isReference(d) && (hasEnumReference(v) || hasTypeReference(v)) {
 			switch t := expr.(type) {
 			case tsast.SelectorExpr:
 				t.Sel.Name = "default" + t.Sel.Name
@@ -1030,24 +1004,20 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 
 		return true, expr, nil
 	}
+
 	return false, nil, nil
 }
 
 // Render a string containing a Typescript semantic equivalent to the provided
 // Value for placement in a single field, if possible.
 func (g generator) tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
-	// Let the forceText attribute supersede everything.
-	if ft := getForceText(v); ft != "" {
-		return ts.Raw(ft), nil
-	}
-
 	if hasEnumReference(v) {
 		ref, err := g.genEnumReference(v)
 		return ref.T, err
 	}
 
 	// References are orthogonal to the Kind system. Handle them first.
-	if containsCuetsyReference(v, TypeAlias, TypeInterface) {
+	if hasTypeReference(v) || containsCuetsyReference(v, TypeInterface) || hasEnumReference(v) {
 		ref, err := referenceValueAs(v)
 		if err != nil {
 			return nil, err
@@ -1226,7 +1196,13 @@ func (g generator) tsprintField(v cue.Value, isType bool) (ts.Expr, error) {
 			return nil, valError(v, "bounds constraints are not supported as they lack a direct typescript equivalent")
 		}
 		fallthrough
-	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.NullKind, cue.StructKind:
+	case cue.NullKind:
+		// It evaluates single null value
+		if op == cue.NoOp && len(dvals) == 0 {
+			return tsprintType(cue.NullKind), nil
+		}
+		fallthrough
+	case cue.FloatKind, cue.IntKind, cue.BoolKind, cue.StructKind:
 		// Having eliminated the possibility of bounds/constraints, we're left
 		// with disjunctions and basic types.
 		switch op {
@@ -1310,6 +1286,8 @@ func tsprintType(k cue.Kind) ts.Expr {
 		return ts.Ident("number")
 	case cue.TopKind:
 		return ts.Ident("unknown")
+	case cue.NullKind:
+		return ts.Ident("null")
 	default:
 		return nil
 	}
@@ -1326,7 +1304,7 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 func refAsInterface(v cue.Value) (ts.Expr, error) {
 	// Bail out right away if the value isn't a reference
 	op, dvals := v.Expr()
-	if !isReference(v) || op != cue.SelectorOp {
+	if !isReference(v) && op != cue.SelectorOp {
 		return nil, fmt.Errorf("not a reference")
 	}
 
@@ -1347,12 +1325,10 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.SelectorExpr:
-		// panic("case 2")
 		if targetsKind(deref, TypeInterface) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.Ident:
-		// panic("case 3")
 		if targetsKind(deref, TypeInterface) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
@@ -1378,7 +1354,7 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 // attribute. The variadic parameter determines which kinds will be treated as
 // permissible. By default, all kinds are permitted.
 //
-// An nil expr indicates a reference is not allowable, including the case
+// A nil expr indicates a reference is not allowable, including the case
 // that the provided Value is not actually a reference. A non-nil error
 // indicates a deeper problem.
 func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
@@ -1432,12 +1408,10 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.SelectorExpr:
-		// panic("case 2")
 		if targetsKind(deref, kinds...) {
 			return ts.Ident(dstr), nil
 		}
 	case *ast.Ident:
-		// panic("case 3")
 		if targetsKind(deref, kinds...) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
@@ -1449,6 +1423,12 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 				Sel:  ts.Ident(dstr),
 			}, nil
 		}
+
+		// It happens when we are overriding a Type parent with a default value. Because `hasOverrides` is true,
+		// dstr is the default value, and we need to set the Type name here
+		if str, ok := dvals[0].Source().(fmt.Stringer); ok {
+			return ts.Ident(str.String()), nil
+		}
 	default:
 		return nil, valError(v, "unknown selector subject type %T, cannot translate path %s", dvals[0].Source(), v.Path().String())
 	}
@@ -1456,20 +1436,23 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 	return nil, nil
 }
 
-func commentsForGroup(cgs []*ast.CommentGroup, jsdoc bool) []tsast.Comment {
-	if cgs == nil {
-		return nil
-	}
-	ret := make([]tsast.Comment, 0, len(cgs))
-	for _, cg := range cgs {
-		if cg.Line {
-			panic("hit it")
+func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
+	docs := v.Doc()
+	if s, ok := v.Source().(*ast.Field); ok {
+		for _, c := range s.Comments() {
+			if !c.Doc && c.Line {
+				docs = append(docs, c)
+			}
 		}
-		ret = append(ret, ts.CommentFromCUEGroup(cg, jsdoc))
+	}
+
+	ret := make([]tsast.Comment, 0, len(docs))
+	for _, cg := range docs {
+		ret = append(ret, ts.CommentFromCUEGroup(ts.Comment{
+			Text:      cg.Text(),
+			Multiline: cg.Doc && !cg.Line,
+			JSDoc:     jsdoc,
+		}))
 	}
 	return ret
-}
-
-func commentsFor(v cue.Value, jsdoc bool) []tsast.Comment {
-	return commentsForGroup(v.Doc(), jsdoc)
 }

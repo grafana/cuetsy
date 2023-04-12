@@ -35,9 +35,9 @@ export type Nested = {
        * tripleInner has a before comment and
        * it's multiline
        */
-      tripleInner: string,
+      tripleInner: string; // tripleInner has an inline comment
     },
   },
 }; // Nested has an inline comment
 
-export type SimpleOnlyInline = string;  // comment on SimpleOnlyInline
+export type SimpleOnlyInline = string; // comment on SimpleOnlyInline

@@ -1,0 +1,46 @@
+-- cue --
+
+#Enum: "a" | "b" | "c" @cuetsy(kind="enum",memberNames="First|Second|Third")
+#Type: "typeA" | "typeB" @cuetsy(kind="type")
+
+#Struct: {
+  union:            #Enum | #Type
+  enumValue:        { #Enum & "a" } | #Type
+  typeValue:        #Enum | { #Type & "typeA" }
+  bothValue:        { #Enum & "a" } | { #Type & "typeA" }
+  defaultEnumValue: *{ #Enum & "a" } | #Type
+  defaultTypeValue: #Enum | *{ #Type & "typeA" }
+  defaultEnum:      *#Enum | #Type
+  defaultType:      #Enum | *#Type
+  defaultMixed:     #Enum | { #Type & "typeA"} | *32 | { #Enum & "b" }
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export enum Enum {
+  First = 'a',
+  Second = 'b',
+  Third = 'c',
+}
+
+export type Type = ('typeA' | 'typeB');
+
+export interface Struct {
+  bothValue: (Enum.First | 'typeA');
+  defaultEnum: (Enum | Type);
+  defaultEnumValue: (Enum.First | Type);
+  defaultMixed: (Enum | 'typeA' | 32 | Enum.Second);
+  defaultType: (Enum | Type);
+  defaultTypeValue: (Enum | 'typeA');
+  enumValue: (Enum.First | Type);
+  typeValue: (Enum | 'typeA');
+  union: (Enum | Type);
+}
+
+export const defaultStruct: Partial<Struct> = {
+  defaultEnum: Enum,
+  defaultEnumValue: Enum.First,
+  defaultMixed: 32,
+  defaultType: Type,
+  defaultTypeValue: 'typeA',
+};

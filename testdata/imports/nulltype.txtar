@@ -15,12 +15,12 @@ obj: {
 
 export type nullType = null;
 
-export type nullInUnion = string | null;
+export type nullInUnion = (string | null);
 
-export type nullDefault = "foo" | "bar" | null;
+export type nullDefault = ('foo' | 'bar' | null);
 
 export const defaultnullDefault: nullDefault = null;
 
 export interface obj {
-    nullField: null
+  nullField: null;
 }
