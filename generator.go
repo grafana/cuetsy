@@ -984,7 +984,6 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 	// }
 
 	if ok {
-		tpv(d)
 		expr, err := g.tsprintField(d, false, true)
 		if err != nil {
 			return false, nil, err
