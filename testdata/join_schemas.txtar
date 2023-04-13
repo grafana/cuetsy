@@ -1,0 +1,97 @@
+-- cue --
+
+#Enum: "foo" | "bar" @cuetsy(kind="enum")
+
+#Lineage: {
+    joinSchema: _
+    #Sequence: {
+        schemas: [joinSchema, ...joinSchema]
+    }
+    seqs: [...#Sequence]
+}
+
+#MyLineage: #Lineage & {
+    seqs: [{
+        schemas: [
+            {
+                union:  #Enum | "foo" | 33
+                union1: #Enum | *"a"
+                union2: #Enum | *"foo"
+                union3: #Enum | "bar"
+                union4: *#Enum | "foo"
+                union5: [...#Enum] | *{[string]: [...#Enum]}
+                union6: "a" | *{
+                             value: "b"
+                             value1: string
+                          }
+                union7: {
+                    nested: {
+                        union: *#Enum | "foo"
+                        union1: "a" | *{
+                                     value: "b"
+                                     value1: string
+                                  }
+                    }
+                }
+            }
+        ]
+    }]
+} @cuetsy(kind="interface")
+
+-- ts --
+
+export enum Enum {
+  Bar = 'bar',
+  Foo = 'foo',
+}
+
+export interface MyLineage {
+  joinSchema: unknown;
+  seqs: [{
+    schemas: [{
+      union: (Enum | 'foo' | 33);
+      union1: (Enum | 'a');
+      union2: (Enum | 'foo');
+      union3: (Enum | 'bar');
+      union4: (Enum | 'foo');
+      union5: (Array<Enum> | Record<string, Array<Enum>>);
+      union6: ('a' | {
+          value: 'b';
+          value1: string;
+        });
+      union7: {
+        nested: {
+          union: (Enum | 'foo');
+          union1: ('a' | {
+              value: 'b';
+              value1: string;
+            });
+        };
+      };
+    }];
+  }];
+}
+
+export const defaultMyLineage: Partial<MyLineage> = {
+  seqs: [{
+    schemas: [{
+      union1: 'a',
+      union2: 'foo',
+      union4: Enum,
+      union5: Record<string, Array<Enum>>,
+      union6: {
+        value: 'b',
+        value1: string,
+      },
+      union7: {
+        nested: {
+          union: Enum,
+          union1: {
+            value: 'b',
+            value1: string,
+          },
+        },
+      },
+    }],
+  }],
+};
