@@ -46,6 +46,14 @@ func TestGenerateWithImports(t *testing.T) {
 		ToDo: map[string]string{
 			"imports/oneref_verbose": "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
 		},
+		ImportMappers: map[string]func(string) (string, error){
+			"imports/imports": func(s string) (string, error) {
+				if s == "example.com/dep" {
+					return "new", nil
+				}
+				return s, nil
+			},
+		},
 	}
 
 	ctx := cuecontext.New()
@@ -57,10 +65,8 @@ func TestGenerateWithImports(t *testing.T) {
 		}
 
 		b, err := cuetsy.Generate(v, cuetsy.Config{
-			Export: true,
-			ImportMapper: func(string) (string, error) {
-				return "", nil
-			},
+			Export:       true,
+			ImportMapper: t.ImportMapperFn,
 		})
 		if err != nil {
 			errors.Print(t, err, nil)

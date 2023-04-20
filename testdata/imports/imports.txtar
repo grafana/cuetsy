@@ -1,0 +1,37 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- in.cue --
+package test
+
+import "example.com/dep"
+import "example.com/other"
+
+#Foo: {
+	x: dep.#Test
+	y: other.#Test
+} @cuetsy(kind="interface")
+
+-- dep/file.cue --
+package dep
+
+#Test: {
+    a: string
+} @cuetsy(kind="interface")
+
+-- other/file.cue --
+package other
+
+#Test: {
+    a: string
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+import * as dep from 'new';
+import * as other from 'example.com/other';
+
+export interface Foo {
+  x: dep.Test;
+  y: other.Test;
+}

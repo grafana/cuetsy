@@ -59,6 +59,8 @@ type TxTarTest struct {
 
 	// ToDo is a map of tests that should be skipped now, but should be fixed.
 	ToDo map[string]string
+
+	ImportMappers map[string]func(string) (string, error)
 }
 
 // A Test represents a single test based on a .txtar file.
@@ -83,6 +85,8 @@ type Test struct {
 	Dir string
 
 	hasGold bool
+
+	ImportMapperFn func(s string) (string, error)
 }
 
 func (t *Test) Write(b []byte) (n int, err error) {
@@ -286,6 +290,14 @@ func (x *TxTarTest) Run(t *testing.T, f func(tc *Test)) {
 			}
 			if msg, ok := x.ToDo[testName]; ok {
 				t.Skip(msg)
+			}
+
+			if im, ok := x.ImportMappers[testName]; ok {
+				tc.ImportMapperFn = im
+			} else {
+				tc.ImportMapperFn = func(s string) (string, error) {
+					return "", nil
+				}
 			}
 
 			f(tc)
