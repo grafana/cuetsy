@@ -49,7 +49,7 @@ func TestGenerateWithImports(t *testing.T) {
 		ImportMappers: map[string]func(string) (string, error){
 			"imports/imports": func(s string) (string, error) {
 				if s == "example.com/dep" {
-					return "new", nil
+					return "@example/deps", nil
 				}
 				return s, nil
 			},
