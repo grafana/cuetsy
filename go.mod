@@ -3,7 +3,7 @@ module github.com/grafana/cuetsy
 go 1.19
 
 require (
-	cuelang.org/go v0.5.0-beta.5
+	cuelang.org/go v0.5.0
 	github.com/google/go-cmp v0.5.8
 	github.com/kr/text v0.2.0
 	github.com/matryer/is v1.4.0

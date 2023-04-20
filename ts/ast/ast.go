@@ -99,16 +99,6 @@ var (
 	_ Expr = Num{}
 )
 
-type Raw struct {
-	Data string
-}
-
-func (r Raw) decl() {}
-func (r Raw) expr() {}
-func (r Raw) String() string {
-	return r.Data
-}
-
 type Ident struct {
 	Name string
 
@@ -569,3 +559,13 @@ const (
 	// preserving indentation.
 	CommentBelow
 )
+
+type Raw struct {
+	Data string
+}
+
+func (r Raw) decl() {}
+func (r Raw) expr() {}
+func (r Raw) String() string {
+	return r.Data
+}

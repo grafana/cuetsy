@@ -8,11 +8,25 @@ TwoLevel: NestedDecl: {
     InnerTwo: number
 } @cuetsy(kind="interface")
 
+ThreeLevel: TwoLevel: NestedDecl: {
+    InnerOne: number
+    InnerTwo: number
+} @cuetsy(kind="interface")
+
 -- out/gen --
 
 export interface TwoLevel {
   NestedDecl: {
     InnerOne: number;
     InnerTwo: number;
+  };
+}
+
+export interface ThreeLevel {
+  TwoLevel: {
+    NestedDecl: {
+      InnerOne: number;
+      InnerTwo: number;
+    };
   };
 }
