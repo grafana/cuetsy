@@ -46,13 +46,14 @@ func TestGenerateWithImports(t *testing.T) {
 		ToDo: map[string]string{
 			"imports/oneref_verbose": "Figure out how to disambiguate struct literals from the struct-with-braces-and-one-element case",
 		},
-		ImportMappers: map[string]func(string) (string, error){
-			"imports/imports": func(s string) (string, error) {
-				if s == "example.com/dep" {
-					return "@example/deps", nil
-				}
-				return s, nil
-			},
+	}
+
+	importMappers := map[string]func(s string) (string, error){
+		"imports/imports": func(s string) (string, error) {
+			if s == "example.com/dep" {
+				return "@example/deps", nil
+			}
+			return s, nil
 		},
 	}
 
@@ -64,9 +65,16 @@ func TestGenerateWithImports(t *testing.T) {
 			t.Fatal(v.Err())
 		}
 
+		im := func(s string) (string, error) {
+			return "", nil
+		}
+		if i, ok := importMappers[t.Name]; ok {
+			im = i
+		}
+
 		b, err := cuetsy.Generate(v, cuetsy.Config{
 			Export:       true,
-			ImportMapper: t.ImportMapperFn,
+			ImportMapper: im,
 		})
 		if err != nil {
 			errors.Print(t, err, nil)
