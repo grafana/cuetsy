@@ -48,6 +48,15 @@ func TestGenerateWithImports(t *testing.T) {
 		},
 	}
 
+	importMappers := map[string]func(s string) (string, error){
+		"imports/imports": func(s string) (string, error) {
+			if s == "example.com/dep" {
+				return "@example/deps", nil
+			}
+			return s, nil
+		},
+	}
+
 	ctx := cuecontext.New()
 
 	test.Run(t, func(t *cuetxtar.Test) {
@@ -56,8 +65,16 @@ func TestGenerateWithImports(t *testing.T) {
 			t.Fatal(v.Err())
 		}
 
+		im := func(s string) (string, error) {
+			return "", nil
+		}
+		if i, ok := importMappers[t.Name]; ok {
+			im = i
+		}
+
 		b, err := cuetsy.Generate(v, cuetsy.Config{
-			Export: true,
+			Export:       true,
+			ImportMapper: im,
 		})
 		if err != nil {
 			errors.Print(t, err, nil)

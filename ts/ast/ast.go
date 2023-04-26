@@ -49,7 +49,11 @@ func (f File) String() string {
 
 	for _, i := range f.Imports {
 		b.WriteString(formatInner(EOLNone, 0, i))
-		b.WriteString("\n\n")
+		b.WriteString("\n")
+	}
+
+	if len(f.Imports) > 0 {
+		b.WriteString("\n")
 	}
 
 	for i, n := range f.Nodes {

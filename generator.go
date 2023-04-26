@@ -47,24 +47,16 @@ var allKinds = [...]TSType{
 	TypeEnum,
 }
 
-// An ImportMapper takes an ImportDecl and returns a string indicating the
-// import statement that should be used in the corresponding typescript, or
-// an error if no mapping can be made.
-type ImportMapper func(*ast.ImportDecl) (string, error)
-
-// NoImportMappingErr returns a standard error indicating that no mapping can be
-// made for the provided import statement.
-func NoImportMappingErr(d *ast.ImportDecl) error {
-	return errors.Newf(d.Pos(), "a corresponding typescript import is not available for %q", d.Import.String())
-}
-
-func nilImportMapper(d *ast.ImportDecl) (string, error) { return "", NoImportMappingErr(d) }
-
 // Config governs certain variable behaviors when converting CUE to Typescript.
 type Config struct {
-	// ImportMapper determines how CUE imports are mapped to Typescript imports.
-	// If nil, any non-stdlib import in the CUE source will result in a fatal
+	// ImportMapper determines how CUE imports are mapped to Typescript imports. If
+	// nil, any non-stdlib import in the input CUE source will result in a fatal
 	// error.
+	//
+	// Import conversions are only run if the input [cue.Value] or its top-level
+	// conjuncts if [cue.Value.Source] returns an [*ast.File]. This eliminates
+	// computed values, and values representing nodes other than a root file
+	// node.
 	ImportMapper
 
 	// Export determines whether generated TypeScript symbols are exported.
@@ -97,6 +89,14 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 		val: &val,
 	}
 
+	var file ts.File
+	var err error
+
+	file.Imports, err = mapImports(val, c.ImportMapper)
+	if err != nil {
+		return nil, err
+	}
+
 	iter, err := val.Fields(
 		cue.Definitions(true),
 		cue.Optional(true),
@@ -105,7 +105,6 @@ func GenerateAST(val cue.Value, c Config) (*ts.File, error) {
 		return nil, err
 	}
 
-	var file ts.File
 	for iter.Next() {
 		n := g.decl(iter.Selector().String(), iter.Value())
 		file.Nodes = append(file.Nodes, n...)

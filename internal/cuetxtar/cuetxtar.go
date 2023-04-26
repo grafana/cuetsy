@@ -83,6 +83,8 @@ type Test struct {
 	Dir string
 
 	hasGold bool
+
+	Name string
 }
 
 func (t *Test) Write(b []byte) (n int, err error) {
@@ -266,6 +268,7 @@ func (x *TxTarTest) Run(t *testing.T, f func(tc *Test)) {
 				T:       t,
 				Archive: a,
 				Dir:     filepath.Dir(filepath.Join(dir, fullpath)),
+				Name:    testName,
 
 				prefix: path.Join("out", x.Name),
 			}
