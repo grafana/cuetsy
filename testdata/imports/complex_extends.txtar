@@ -6,15 +6,31 @@ package test
 
 import "example.com/dep"
 
-Do: Wrapper & {
+FromE: Wrapper & {
+    E: dep.Embed
     Lit: dep.Lit
 }
 
+FromLit: Wrapper & {
+    Lit: dep.LitWith
+}
+
 Wrapper: {
-    E: Embed
+    E: _
     Lit: _
     #Ref: E & Lit
 }
+-- dep/file.cue --
+package dep
+
+Lit: {
+    fromLit: string
+} @cuetsy(kind="interface")
+
+LitWith: {
+    ET
+    fromLit: string
+} @cuetsy(kind="interface")
 
 ET: {
     fromET: string
@@ -24,19 +40,14 @@ Embed: {
     ET
 }
 
--- dep/file.cue --
-package dep
-
-Lit: {
-    fromLit: string
-} @cuetsy(kind="interface")
-
 -- out/gen --
 
-export interface ET {
-  fromET: string;
+
+-- out/gen/FromE --
+export interface FromE extends dep.ET {
+  fromLit: string;
 }
--- out/gen/single --
-export interface target extends ET {
+-- out/gen/FromLit --
+export interface FromLit extends dep.ET {
   fromLit: string;
 }
