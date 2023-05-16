@@ -1,0 +1,57 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+FromE: Wrapper & {
+    E: Embed
+    Lit: Lit
+}
+
+FromLit: Wrapper & {
+    Lit: LitWith
+}
+
+Wrapper: {
+    E: _
+    Lit: _
+    #Ref: E & Lit
+}
+
+Lit: {
+    fromLit: string
+} @cuetsy(kind="interface")
+
+LitWith: {
+    ET
+    fromLit: string
+} @cuetsy(kind="interface")
+
+ET: {
+    fromET: string
+} @cuetsy(kind="interface")
+
+Embed: {
+    ET
+}
+
+-- out/gen --
+
+export interface Lit {
+  fromLit: string;
+}
+
+export interface LitWith extends ET {}
+
+export interface ET {
+  fromET: string;
+}
+-- out/gen/FromE --
+export interface FromE extends ET {
+  fromLit: string;
+}
+-- out/gen/FromLit --
+export interface FromLit extends ET {
+  fromLit: string;
+}

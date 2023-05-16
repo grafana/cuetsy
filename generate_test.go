@@ -82,7 +82,7 @@ func TestGenerateWithImports(t *testing.T) {
 		}
 
 		_, _ = t.Write(b)
-		if t.Name == "imports/complex_extends" {
+		if strings.HasPrefix(t.Name, "imports/complex_extends") {
 			a, err := cuetsy.GenerateSingleAST("FromE", v.LookupPath(cue.ParsePath("FromE.#Ref")), cuetsy.TypeInterface)
 			if err != nil {
 				t.Fatal(err)
