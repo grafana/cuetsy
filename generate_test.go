@@ -82,6 +82,14 @@ func TestGenerateWithImports(t *testing.T) {
 		}
 
 		_, _ = t.Write(b)
+		if t.Name == "imports/complex_extends" {
+			a, err := cuetsy.GenerateSingleAST("target", v.LookupPath(cue.ParsePath("Do.#Ref")), cuetsy.TypeInterface)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w := t.Writer("single")
+			fmt.Fprint(w, a.T)
+		}
 	})
 }
 

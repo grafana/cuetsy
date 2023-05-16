@@ -1,0 +1,42 @@
+-- cue.mod/module.cue --
+module: "example.com"
+
+-- one.cue --
+package test
+
+import "example.com/dep"
+
+Do: Wrapper & {
+    Lit: dep.Lit
+}
+
+Wrapper: {
+    E: Embed
+    Lit: _
+    #Ref: E & Lit
+}
+
+ET: {
+    fromET: string
+} @cuetsy(kind="interface")
+
+Embed: {
+    ET
+}
+
+-- dep/file.cue --
+package dep
+
+Lit: {
+    fromLit: string
+} @cuetsy(kind="interface")
+
+-- out/gen --
+
+export interface ET {
+  fromET: string;
+}
+-- out/gen/single --
+export interface target extends ET {
+  fromLit: string;
+}
