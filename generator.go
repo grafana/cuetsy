@@ -322,7 +322,7 @@ func enumDefault(v cue.Value) (*tsast.Ident, error) {
 	a := v.Attribute(attrname)
 	val, found, err := a.Lookup(0, attrEnumMembers)
 	if err != nil || !found {
-		panic(fmt.Sprintf("looking up memberNames: found=%t err=%s", found, err))
+		return nil, valError(v, "Looking for memberNames: found=%t err=%s", found, err)
 	}
 	evals := strings.Split(val, "|")
 
@@ -350,7 +350,7 @@ func enumPairs(v cue.Value) ([]enumPair, error) {
 	a := v.Attribute(attrname)
 	val, found, err := a.Lookup(0, attrEnumMembers)
 	if err != nil {
-		panic(fmt.Sprintf("looking up memberNames: found=%t err=%s", found, err))
+		return nil, valError(v, "Looking for memberNames: found=%t err=%s", found, err)
 	}
 
 	var evals []string
@@ -362,7 +362,7 @@ func enumPairs(v cue.Value) ([]enumPair, error) {
 			evals = append(evals, strings.Title(s))
 		}
 	} else {
-		return nil, fmt.Errorf("must provide memberNames attribute for non-string enums")
+		return nil, valError(v, "must provide memberNames attribute for non-string enums")
 	}
 
 	var pairs []enumPair
@@ -423,11 +423,15 @@ func orEnum(v cue.Value) ([]ts.Expr, error) {
 			return nil, valError(v, "title casing of enum member %q produces an invalid typescript identifier; memberNames must be explicitly given in @cuetsy attribute", text)
 		}
 
+		val, err := tsprintConcrete(dv)
+		if err != nil {
+			return nil, err
+		}
 		fields = append(fields, tsast.AssignExpr{
 			// Simple mapping of all enum values (which we are assuming are in
 			// lowerCamelCase) to corresponding CamelCase
 			Name:  id,
-			Value: tsprintConcrete(dv),
+			Value: val,
 		})
 	}
 
@@ -614,7 +618,8 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 			// one containing the unified result - more complicated with no obvious benefit.
 			for _, dv := range dvals {
 				if dv.IncompleteKind() != cue.StructKind && dv.IncompleteKind() != cue.TopKind {
-					panic("impossible? seems like it should be. if this pops, clearly not!")
+					// impossible? seems like it should be. if this pops, clearly not!
+					return valError(v, "error while finding extends")
 				}
 
 				if err := walkExpr(dv); err != nil {
@@ -623,7 +628,7 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 			}
 			return nil
 		default:
-			panic(fmt.Sprintf("unhandled op type %s", op.String()))
+			return valError(v, "unhandled op type while finding the extends: %s", op.String())
 		}
 	}
 
@@ -726,11 +731,17 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	var enumUnions map[cue.Value]cue.Value
 	switch len(conjuncts) {
 	case 0:
-		panic("unreachable")
+		ve := valError(v, "unreachable: no conjuncts while looking for enum references")
+		g.addErr(ve)
+		return nil, ve
 	case 1:
 		// This case is when we have a union of enums which we need to iterate them to get their values or has a default value.
 		// It retrieves a list of literals with their references.
-		enumUnions = g.findEnumUnions(v)
+		var err error
+		enumUnions, err = g.findEnumUnions(v)
+		if err != nil {
+			return nil, err
+		}
 	case 2:
 		var err error
 		conjuncts[1] = getDefaultEnumValue(conjuncts[1])
@@ -787,7 +798,7 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 	case 1, 2:
 		ref.T, err = referenceValueAs(referrer, TypeEnum)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 
@@ -842,40 +853,40 @@ func (g *generator) genEnumReference(v cue.Value) (*typeRef, error) {
 }
 
 // findEnumUnions find the unions between enums like (#Enum & "a") | (#Enum & "b")
-func (g generator) findEnumUnions(v cue.Value) map[cue.Value]cue.Value {
+func (g generator) findEnumUnions(v cue.Value) (map[cue.Value]cue.Value, error) {
 	op, values := v.Expr()
 	if op != cue.OrOp {
-		return nil
+		return nil, nil
 	}
 
 	enumsWithUnions := make(map[cue.Value]cue.Value, len(values))
 	for _, val := range values {
 		conjuncts := appendSplit(nil, cue.AndOp, val)
 		if len(conjuncts) != 2 {
-			return nil
+			return nil, nil
 		}
 		cr, lit := conjuncts[0], conjuncts[1]
 		if cr.Subsume(lit) != nil {
-			return nil
+			return nil, nil
 		}
 
 		switch val.Kind() {
 		case cue.StringKind, cue.IntKind:
 			enumValues, _, has := findRefWithKind(v, TypeEnum)
 			if !has {
-				return nil
+				return nil, nil
 			}
 			enumsWithUnions[lit] = enumValues
 		default:
 			_, vals := val.Expr()
 			if len(vals) > 1 {
-				panic(fmt.Sprintf("%s.%s isn't a valid enum value", val.Path().String(), vals[1]))
+				return nil, valError(v, "%s.%s isn't a valid enum value", val.Path().String(), vals[1])
 			}
-			panic(fmt.Sprintf("Invalid value in path %s", val.Path().String()))
+			return nil, valError(v, "Invalid value in path %s", val.Path().String())
 		}
 	}
 
-	return enumsWithUnions
+	return enumsWithUnions, nil
 }
 
 func (g generator) findIdent(v, ev, tv cue.Value, fn func(tsast.Ident)) error {
@@ -895,7 +906,8 @@ func (g generator) findIdent(v, ev, tv cue.Value, fn func(tsast.Ident)) error {
 		}
 	}
 
-	panic(fmt.Sprintf("unreachable - %#v not equal to any member of %#v, but should have been caught by subsume check", tv, ev))
+	// unreachable?
+	return valError(v, "%#v not equal to any member of %#v, but should have been caught by subsume check", tv, ev)
 }
 
 func getEnumLiteral(conjuncts []cue.Value) (*cue.Value, error) {
@@ -997,7 +1009,7 @@ func (g generator) tsPrintDefault(v cue.Value) (bool, ts.Expr, error) {
 				t.Name = "default" + t.Name
 				expr = t
 			default:
-				panic(fmt.Sprintf("unexpected type %T", expr))
+				return false, nil, fmt.Errorf("unexpected type %T", expr)
 			}
 		}
 
@@ -1102,7 +1114,7 @@ func (g generator) tsprintField(v cue.Value, isType bool, isDefault bool) (ts.Ex
 
 			return tsast.ObjectLit{Elems: kvs, IsType: isType}, nil
 		default:
-			panic(fmt.Sprintf("not expecting op type %d", op))
+			return nil, valError(v, "not expecting op type %d", op)
 		}
 	case cue.ListKind:
 		// A list is concrete (and thus its complete kind is ListKind instead of
@@ -1123,7 +1135,7 @@ func (g generator) tsprintField(v cue.Value, isType bool, isDefault bool) (ts.Ex
 		}
 		return ts.List(elems...), nil
 	case cue.StringKind, cue.BoolKind, cue.FloatKind, cue.IntKind:
-		return tsprintConcrete(v), nil
+		return tsprintConcrete(v)
 	case cue.BytesKind:
 		return nil, valError(v, "bytes have no equivalent in Typescript; use double-quotes (string) instead")
 	}
@@ -1186,7 +1198,8 @@ func (g generator) tsprintField(v cue.Value, isType bool, isDefault bool) (ts.Ex
 			}
 			return tsast.ListExpr{Expr: expr}, nil
 		} else {
-			panic("unreachable - open list must have a type")
+			// unreachable?
+			return nil, errors.New("open list must have a type")
 		}
 	case cue.NumberKind, cue.StringKind:
 		// It appears there are only three cases in which we can have an
@@ -1239,7 +1252,8 @@ func (g generator) tsprintField(v cue.Value, isType bool, isDefault bool) (ts.Ex
 				return disj(args)
 			}
 		default:
-			panic("unreachable...?")
+			// unreachable...?
+			return nil, valError(v, "no handled operator: %s", op.String())
 		}
 		fallthrough
 	case cue.TopKind:
@@ -1272,24 +1286,24 @@ func getValuesWithDefaults(v cue.Value, cuetsyType cue.Value) []cue.Value {
 
 // ONLY call this function if it has been established that the provided Value is
 // Concrete.
-func tsprintConcrete(v cue.Value) ts.Expr {
+func tsprintConcrete(v cue.Value) (ts.Expr, error) {
 	switch v.Kind() {
 	case cue.NullKind:
-		return ts.Null()
+		return ts.Null(), nil
 	case cue.StringKind:
 		s, _ := v.String()
-		return ts.Str(s)
+		return ts.Str(s), nil
 	case cue.FloatKind:
 		f, _ := v.Float64()
-		return ts.Float(f)
+		return ts.Float(f), nil
 	case cue.NumberKind, cue.IntKind:
 		i, _ := v.Int64()
-		return ts.Int(i)
+		return ts.Int(i), nil
 	case cue.BoolKind:
 		b, _ := v.Bool()
-		return ts.Bool(b)
+		return ts.Bool(b), nil
 	default:
-		panic("unreachable")
+		return nil, valError(v, "concrete kind not found: %s", v.Kind())
 	}
 }
 
@@ -1349,7 +1363,7 @@ func refAsInterface(v cue.Value) (ts.Expr, error) {
 		if targetsKind(deref, TypeInterface) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
-				panic("expected dvals[0].Source() to implement String()")
+				return nil, valError(v, "expected dvals[0].Source() to implement String()")
 			}
 
 			return tsast.SelectorExpr{
@@ -1432,7 +1446,7 @@ func referenceValueAs(v cue.Value, kinds ...TSType) (ts.Expr, error) {
 		if targetsKind(deref, kinds...) {
 			str, ok := dvals[0].Source().(fmt.Stringer)
 			if !ok {
-				panic("expected dvals[0].Source() to implement String()")
+				return nil, valError(v, "expected dvals[0].Source() to implement String()")
 			}
 
 			return tsast.SelectorExpr{
