@@ -215,7 +215,7 @@ func (g *generator) genType(name string, v cue.Value) []ts.Decl {
 		}
 		tokens = append(tokens, tok)
 	default:
-		g.addErr(valError(v, "typescript types may only be generated from a single value or disjunction of values"))
+		g.addErr(errors.New("typescript types may only be generated from a single value or disjunction of values"))
 	}
 
 	ret := make([]ts.Decl, 2)
@@ -650,7 +650,7 @@ func (g *generator) genInterfaceField(v cue.Value) (*typeRef, error) {
 	tref.T, err = g.tsprintField(v, true, false)
 	if err != nil {
 		if !containsCuetsyReference(v) {
-			g.addErr(valError(v, "could not generate field: %w", err))
+			g.addErr(err)
 			return nil, err
 		}
 		g.addErr(err)
@@ -1252,8 +1252,7 @@ func (g generator) tsprintField(v cue.Value, isType bool, isDefault bool) (ts.Ex
 				return disj(args)
 			}
 		default:
-			// unreachable...?
-			return nil, valError(v, "no handled operator: %s", op.String())
+			return nil, valError(v, "no handler for operator: '%s' for kind '%s'", op.String(), ik)
 		}
 		fallthrough
 	case cue.TopKind:
@@ -1329,7 +1328,13 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 	if s == nil {
 		return fmt.Errorf(format, args...)
 	}
-	return errors.Newf(s.Pos(), format, args...)
+
+	msg := ""
+	if i, ok := s.(*ast.Field); ok {
+		msg = fmt.Sprintf("We found an error in the field '%s:%d:%d'. ", i.Label, s.Pos().Line(), s.Pos().Column())
+	}
+	f := fmt.Sprintf("%sError: %s", msg, format)
+	return errors.Newf(s.Pos(), f, args...)
 }
 
 func refAsInterface(v cue.Value) (ts.Expr, error) {
