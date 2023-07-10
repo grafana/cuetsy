@@ -8,4 +8,4 @@ Out: {
 } @cuetsy(kind="interface")
 
 -- err --
-typescript interfaces cannot be constructed from disjunctions
+Found an error in the field 'Out:3:1'. Error: typescript interfaces cannot be constructed from disjunctions

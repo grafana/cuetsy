@@ -99,6 +99,9 @@ func TestGenerate(t *testing.T) {
 				t.Fatal(err)
 			}
 			out, err := cuetsy.Generate(i.Value(), cuetsy.Config{
+				ImportMapper: func(path string) (string, error) {
+					return path, nil
+				},
 				Export: true,
 			})
 			if c.CaseType == ErrorType {

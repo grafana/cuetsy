@@ -1,0 +1,19 @@
+-- cue --
+package test
+
+#Test: {
+    #Type1: {
+        group: string
+        options?: [...string]
+    }
+    #Type2: {
+        group: string
+        details: {
+            [string]: _
+        }
+    }
+    #UnionType: #Type1 | #Type2
+    union: #UnionType
+} @cuetsy(kind="interface")
+-- err --
+Found an error in the field 'union:15:5'. Error: no handler for operator: '.' for kind 'struct'
