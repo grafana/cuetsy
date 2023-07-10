@@ -628,7 +628,7 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 			}
 			return nil
 		default:
-			return valError(v, "unhandled op type while finding the extends: %s", op.String())
+			return valError(v, "unhandled op type while finding type to extend: %s", op.String())
 		}
 	}
 
