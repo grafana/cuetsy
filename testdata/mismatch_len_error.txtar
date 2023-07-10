@@ -2,4 +2,4 @@
 E3: "a" | "b" | "c" @cuetsy(kind="enum",memberNames="a|b")
 
 -- err --
-We found an error in the field 'E3:1:1'. Error: typescript enums and memberNames attributes size doesn't match
+Found an error in the field 'E3:1:1'. Error: typescript enums and memberNames attributes size doesn't match

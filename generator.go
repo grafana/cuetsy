@@ -1331,7 +1331,7 @@ func valError(v cue.Value, format string, args ...interface{}) error {
 
 	msg := ""
 	if i, ok := s.(*ast.Field); ok {
-		msg = fmt.Sprintf("We found an error in the field '%s:%d:%d'. ", i.Label, s.Pos().Line(), s.Pos().Column())
+		msg = fmt.Sprintf("Found an error in the field '%s:%d:%d'. ", i.Label, s.Pos().Line(), s.Pos().Column())
 	}
 	f := fmt.Sprintf("%sError: %s", msg, format)
 	return errors.Newf(s.Pos(), f, args...)

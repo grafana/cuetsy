@@ -16,4 +16,4 @@ package test
     union: #UnionType
 } @cuetsy(kind="interface")
 -- err --
-We found an error in the field 'union:15:5'. Error: no handler for operator: '.' for kind 'struct'
+Found an error in the field 'union:15:5'. Error: no handler for operator: '.' for kind 'struct'
