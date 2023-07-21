@@ -580,7 +580,6 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 	// generated as literals.
 	baseNolit := v.Context().CompileString("")
 	nolit := v.Context().CompileString("")
-
 	var walkExpr func(v cue.Value) error
 	walkExpr = func(v cue.Value) error {
 		op, dvals := v.Expr()
