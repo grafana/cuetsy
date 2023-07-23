@@ -600,6 +600,12 @@ func findExtends(v cue.Value) ([]ts.Expr, cue.Value, error) {
 		case cue.OrOp:
 			return valError(v, "typescript interfaces cannot be constructed from disjunctions")
 		case cue.SelectorOp:
+			deref := cue.Dereference(v)
+			_, dexpr := deref.Expr()
+			if dexpr[len(dexpr)-1].IncompleteKind() == cue.TopKind {
+				return walkExpr(deref)
+			}
+
 			expr, err := refAsInterface(v)
 			if err != nil {
 				return err
