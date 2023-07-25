@@ -121,13 +121,13 @@ func TestGenerate(t *testing.T) {
 
 func TestGenerateSingleAST(t *testing.T) {
 	ctx := cuecontext.New()
-	v := ctx.CompileString("a: string")
+	v := ctx.CompileString("a: *\"foo\" | string")
 
 	p, err := cuetsy.GenerateSingleAST("My-Invalid-Name", v, cuetsy.TypeInterface)
 	require.NoError(t, err)
 
-	decl := p.T.String()
-	assert.Equal(t, decl, "export interface MyInvalidName {\n  a: string;\n}")
+	assert.Equal(t, "export interface MyInvalidName {\n  a: string;\n}", p.T.String())
+	assert.Equal(t, "export const defaultMyInvalidName: Partial<MyInvalidName> = {\n  a: 'foo',\n};", p.D.String())
 }
 
 func loadCases(dir string) ([]Case, error) {
