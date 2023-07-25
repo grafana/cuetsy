@@ -5,6 +5,7 @@ import (
 
 	"github.com/grafana/cuetsy/ts/ast"
 	"github.com/matryer/is"
+	"github.com/stretchr/testify/assert"
 )
 
 func ident(s string) ast.Ident {
@@ -287,6 +288,42 @@ func TestExportNamespace(t *testing.T) {
 		t.Run(nam, func(t *testing.T) {
 			is := is.New(t)
 			is.Equal(item.want, iitem.input.String())
+		})
+	}
+}
+
+func TestFormatIdentNames(t *testing.T) {
+	testCases := []struct {
+		name   string
+		value  string
+		result string
+	}{
+		{
+			name:   "Text with dashes",
+			value:  "Text-With-Dashes",
+			result: "TextWithDashes",
+		},
+		{
+			name:   "Text with underscores",
+			value:  "Text_With_Underscores",
+			result: "Text_With_Underscores",
+		},
+		{
+			name:   "Text with punctuation marks",
+			value:  "Text.with:punctuation;marks",
+			result: "Textwithpunctuationmarks",
+		},
+		{
+			name:   "Text with optional value",
+			value:  "TestWithOptionalValue?",
+			result: "TestWithOptionalValue?",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			i := ident(tc.value)
+			assert.Equal(t, i.String(), tc.result)
 		})
 	}
 }
