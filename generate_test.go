@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/grafana/cuetsy"
 	"github.com/grafana/cuetsy/internal/cuetxtar"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/txtar"
 	"gotest.tools/assert"
 )
@@ -116,6 +117,17 @@ func TestGenerate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateSingleAST(t *testing.T) {
+	ctx := cuecontext.New()
+	v := ctx.CompileString("a: *\"foo\" | string")
+
+	p, err := cuetsy.GenerateSingleAST("My-Invalid-Name", v, cuetsy.TypeInterface)
+	require.NoError(t, err)
+
+	assert.Equal(t, "export interface MyInvalidName {\n  a: string;\n}", p.T.String())
+	assert.Equal(t, "export const defaultMyInvalidName: Partial<MyInvalidName> = {\n  a: 'foo',\n};", p.D.String())
 }
 
 func loadCases(dir string) ([]Case, error) {

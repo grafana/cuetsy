@@ -118,6 +118,7 @@ func (i Ident) ident() {}
 func (i Ident) expr()  {}
 func (i Ident) String() string {
 	n := strings.Replace(i.Name, "#", "", -1)
+	n = regexp.MustCompile("[^a-zA-Z0-9_?]").ReplaceAllString(n, "")
 
 	if i.As != "" {
 		return fmt.Sprintf("%s as %s", n, i.As)
